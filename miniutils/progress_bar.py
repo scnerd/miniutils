@@ -1,19 +1,19 @@
-import multiprocessing as mp
-import functools
-import random
-
 import itertools
+import multiprocessing as mp
+import random
 
 try:
     from tqdm import tqdm as _tqdm
     try:
-        # Check if we're in a Jupyter notebook... if so, use the ipywidghets progress bar instead
+        # Check if we're in a Jupyter notebook... if so, use the ipywidgets progress bar instead
+        # noinspection PyUnresolvedReferences
         cfg = get_ipython().config
-        if cfg['IPKernalApp']['parent_appname'] == 'ipython-notebook':
+        if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
             from tqdm import tqdm_notebook as _tqdm
     except NameError:
         pass
 except ImportError:
+    # noinspection PyUnusedLocal
     def _tqdm(iterable, *a, **kw):
         return iterable
 

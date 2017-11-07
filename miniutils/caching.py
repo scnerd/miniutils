@@ -93,8 +93,8 @@ class CachedProperty:
     def __call__(self, f):
         self.f = f
         self.name = name = f.__name__
-        flag_name = '__need_' + name
-        cache_name = '__' + name
+        flag_name = '_need_' + name
+        cache_name = '_' + name
 
         def reset_dependents(inner_self):
             for affected in self.affected_properties:
@@ -109,7 +109,7 @@ class CachedProperty:
                                         self.allow_collection_mutation)
 
         if self.threadsafe:
-            lock_name = '__lock_' + name
+            lock_name = '_lock_' + name
 
             @functools.wraps(f)
             def inner_getter(inner_self):
@@ -150,16 +150,16 @@ class CachedProperty:
             return property(fget=inner_getter, fset=inner_setter, fdel=inner_deleter, doc=self.f.__doc__)
 
 
-def _get_class_that_defined_method(meth):
+def _get_class_that_defined_method(method):
     """https://stackoverflow.com/questions/3589311/get-defining-class-of-unbound-method-object-in-python-3"""
-    if inspect.ismethod(meth):
-        for cls in inspect.getmro(meth.__self__.__class__):
-            if cls.__dict__.get(meth.__name__) is meth:
+    if inspect.ismethod(method):
+        for cls in inspect.getmro(method.__self__.__class__):
+            if cls.__dict__.get(method.__name__) is method:
                 return cls
-        meth = meth.__func__  # fallback to __qualname__ parsing
-    if inspect.isfunction(meth):
-        cls = getattr(inspect.getmodule(meth),
-                      meth.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0])
+        method = method.__func__  # fallback to __qualname__ parsing
+    if inspect.isfunction(method):
+        cls = getattr(inspect.getmodule(method),
+                      method.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0])
         if isinstance(cls, type):
             return cls
-    return getattr(meth, '__objclass__', None)  # handle special descriptor objects
+    return getattr(method, '__objclass__', None)  # handle special descriptor objects

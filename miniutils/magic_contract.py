@@ -2,6 +2,7 @@ from contracts import contract, new_contract
 from contracts.library import Extension as _Ext
 from miniutils.opt_decorator import optional_argument_decorator
 
+
 @optional_argument_decorator
 def magic_contract(*args, **kwargs):
     def inner_decorator(f):
