@@ -74,13 +74,26 @@ class CachedCollection:
             return wrapped_res
 
 
-class CachedProperty:
-    """
+# TODO: Created a CachedAttribute/functional version of this, e.g. to use in the constructor
+# def __init__(self):
+#     self.attribute = CachedAttribute(lambda: something_slow(self))
+# You'll need to pull in the 'self' from the frame in which CachedAttribute gets called
+# The upside is that you shrink essentially a 3-liner into a 1-liner for simple cases
 
-    """
+# TODO: Create a general purpose decorator that just allows other properties or methods to fit into the dependency chain
+
+class CachedProperty:
     caches = []
 
     def __init__(self, *affects, settable=False, threadsafe=True, is_collection=False, allow_collection_mutation=True):
+        """
+
+        :param affects:
+        :param settable:
+        :param threadsafe:
+        :param is_collection:
+        :param allow_collection_mutation:
+        """
         self.affected_properties = affects
         self.settable = settable
         self.threadsafe = threadsafe

@@ -13,7 +13,16 @@ class MakePython2():
     pickle_protocol = 2
     template = os.path.join(*(list(os.path.split(__file__))[:-1] + ['py2_template.py']))
 
-    def __init__(self, function=None, *, imports=None, global_values=None, copy_function_body=True, python2_path='python2'):
+    def __init__(self, function=None, *, imports=None, global_values=None, copy_function_body=True,
+                 python2_path='python2'):
+        """
+
+        :param function:
+        :param imports:
+        :param global_values:
+        :param copy_function_body:
+        :param python2_path:
+        """
         self.imports = imports or []
         self.globals = global_values or {}
         self.copy_function_body = copy_function_body

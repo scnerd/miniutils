@@ -19,6 +19,14 @@ except ImportError:
 
 
 def progbar(iterable, *a, verbose=True, **kw):
+    """
+
+    :param iterable:
+    :param a:
+    :param verbose:
+    :param kw:
+    :return:
+    """
     iterable = range(iterable) if isinstance(iterable, int) else iterable
     if verbose:
         return _tqdm(iterable, *a, **kw)
@@ -40,8 +48,8 @@ def _fun(f, q_in, q_out, flatten, star):
             q_out.put((i, out))
 
 
-def _parallel_progbar_launch(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
-                             verbose=True, verbose_flatmap=None, max_cache=None):
+def _parallel_progbar_launch(mapper, iterable, nprocs=mp.cpu_count(), starmap=False, flatmap=False, shuffle=False,
+                             verbose=True, verbose_flatmap=None, max_cache=-1):
     # Check that we don't launch more processes than there are elements to map (if that's knowable)
     try:
         nprocs = min(len(iterable), nprocs)
@@ -91,7 +99,7 @@ def _parallel_progbar_launch(mapper, iterable, nprocs=None, starmap=False, flatm
         p.join()
 
 
-def parallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
+def parallel_progbar(mapper, iterable, nprocs=mp.cpu_count(), starmap=False, flatmap=False, shuffle=False,
                      verbose=True, verbose_flatmap=None):
     """
 
@@ -107,13 +115,13 @@ def parallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=False
     """
 
     results = list(_parallel_progbar_launch(mapper, iterable, nprocs, starmap, flatmap, shuffle, verbose,
-                                            verbose_flatmap, max_cache=None))
+                                            verbose_flatmap))
 
     return [x for i, x in sorted(results, key=lambda p: p[0])]
 
 
-def iparallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
-                      verbose=True, verbose_flatmap=None, max_cache=None):
+def iparallel_progbar(mapper, iterable, nprocs=mp.cpu_count(), starmap=False, flatmap=False, shuffle=False,
+                      verbose=True, verbose_flatmap=None, max_cache=-1):
     """
 
     :param mapper:
