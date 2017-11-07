@@ -4,3 +4,6 @@ __pycache__
 logs
 *.pkl
 *.egg-info
+MANIFEST
+dist
+
