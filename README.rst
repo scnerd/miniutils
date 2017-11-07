@@ -1,6 +1,8 @@
 Overview
 --------
 
+Full documentation for this module is available over at `ReadTheDocs <http://miniutils.readthedocs.io/>`_.
+
 This module provides numerous helper utilities for Python3.X code to add functionality with minimal code footprint. It has tools for the following tasks:
 
 - Progress bars on serial loops and parallel mappings (leveraging the excellent ``tqdm`` library)
