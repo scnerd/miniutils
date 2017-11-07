@@ -19,7 +19,6 @@ except ImportError:
         return iterable
 
 
-@functools.wraps(_tqdm)
 def progbar(iterable, *a, verbose=True, **kw):
     """Prints a progress bar as the iterable is iterated over
 

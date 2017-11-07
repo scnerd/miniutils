@@ -4,7 +4,7 @@ Miscellaneous
 Code Contracts
 ==============
 
-Code contracting seems like a great way to define and document your code's expected behavior, easily integrate bounds checking, and just generally write code that tries to avoid bugs. The ``pycontracts`` package provides this capability within python, but as soon as I started using it I realized that it was meant primarily to be robust, not concise. For example, consider the following code::
+Code contracting seems like a great way to define and document your code's expected behavior, easily integrate bounds checking, and just generally write code that tries to avoid bugs. The `pycontracts <https://andreacensi.github.io/contracts/>`_ package provides this capability within python, but as soon as I started using it I realized that it was meant primarily to be robust, not concise. For example, consider the following code::
 
     class ObjA:
         pass

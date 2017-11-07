@@ -1,7 +1,7 @@
 Progress Bars
 +++++++++++++
 
-Three progress bar utilities are provided, all leveraging the excellent `tqdm <https://pypi.python.org/pypi/tqdm>` library.
+Three progress bar utilities are provided, all leveraging the excellent `tqdm <https://pypi.python.org/pypi/tqdm>`_ library.
 
 progbar
 =======
