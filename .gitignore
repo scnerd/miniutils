@@ -6,4 +6,5 @@ logs
 *.egg-info
 MANIFEST
 dist
+build
 
