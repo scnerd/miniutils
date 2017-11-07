@@ -15,13 +15,16 @@ class MakePython2():
 
     def __init__(self, function=None, *, imports=None, global_values=None, copy_function_body=True,
                  python2_path='python2'):
-        """
+        """Make a function execute within a Python 2 instance
 
-        :param function:
-        :param imports:
-        :param global_values:
-        :param copy_function_body:
-        :param python2_path:
+        :param function: The function to wrap. If not specified, this class instance behaves like a decorator
+        :param imports: Any import statements the function requires. Should be a list, where each element is either a
+            string (e.g., ``'sys'`` for ``import sys``)
+            or a tuple (e.g., ``('os.path', 'path')`` for ``import os.path as pas``)
+        :param global_values: A dictionary of global variables the function relies on. Key must be strings, and values
+            must be picklable
+        :param copy_function_body: Whether or not to copy the function's source code into the Python 2 instance
+        :param python2_path: The path to the Python 2 executable to use
         """
         self.imports = imports or []
         self.globals = global_values or {}
@@ -41,6 +44,9 @@ class MakePython2():
             if not all(isinstance(n, str) and valid_name.match(n) for n in imp):
                 raise ValueError("Invalid import name: 'import {}{}'"
                                  .format(imp[0], 'as {}'.format(imp[1]) if len(imp) == 2 else ''))
+
+        if not all(isinstance(k, str) for k in self.globals.keys()):
+            raise ValueError("Global variables must be given as {'name': value}")
 
         if function:
             self(function)

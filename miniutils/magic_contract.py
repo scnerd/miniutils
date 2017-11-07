@@ -5,11 +5,11 @@ from miniutils.opt_decorator import optional_argument_decorator
 
 @optional_argument_decorator
 def magic_contract(*args, **kwargs):
-    """
+    """Drop-in replacement for ``pycontracts.contract`` decorator, except that it supports locally-visible types
 
-    :param args:
-    :param kwargs:
-    :return:
+    :param args: Arguments to pass to the ``contract`` decorator
+    :param kwargs: Keyword arguments to pass to the ``contract`` decorator
+    :return: The contracted function
     """
     def inner_decorator(f):
         for name, val in f.__globals__.items():

@@ -1,6 +1,7 @@
 import itertools
 import multiprocessing as mp
 import random
+import functools
 
 try:
     from tqdm import tqdm as _tqdm
@@ -18,14 +19,15 @@ except ImportError:
         return iterable
 
 
+@functools.wraps(_tqdm)
 def progbar(iterable, *a, verbose=True, **kw):
-    """
+    """Prints a progress bar as the iterable is iterated over
 
-    :param iterable:
-    :param a:
-    :param verbose:
-    :param kw:
-    :return:
+    :param iterable: The iterator to iterate over
+    :param a: Arguments to get passed to tqdm (or tqdm_notebook, if in a Jupyter notebook)
+    :param verbose: Whether or not to print the progress bar at all
+    :param kw: Keyword arguments to get passed to tqdm
+    :return: The iterable that will report a progress bar
     """
     iterable = range(iterable) if isinstance(iterable, int) else iterable
     if verbose:
@@ -48,18 +50,22 @@ def _fun(f, q_in, q_out, flatten, star):
             q_out.put((i, out))
 
 
-def _parallel_progbar_launch(mapper, iterable, nprocs=mp.cpu_count(), starmap=False, flatmap=False, shuffle=False,
+def _parallel_progbar_launch(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
                              verbose=True, verbose_flatmap=None, max_cache=-1):
-    # Check that we don't launch more processes than there are elements to map (if that's knowable)
-    try:
-        nprocs = min(len(iterable), nprocs)
-    except TypeError:
-        pass
 
     # Shuffle the iterable if requested, to make the parallel execution potentially more uniform in runtime
     if shuffle:
         iterable = list(iterable)
-        random.shuffle(iterable)
+        #ids = [i for i in sorted(range(len(iterable)), key=lambda x: random.random())]
+        #iterable = (iterable[i] for i in ids)
+        random.shuffle(iterable)  # Is this going to be expensive for large lists of large objects?
+
+    # Check that we don't launch more processes than there are elements to map (if that's knowable)
+    nprocs = nprocs or mp.cpu_count()
+    try:
+        nprocs = max(1, min(len(iterable), nprocs))
+    except TypeError:
+        pass
 
     # Set up multiprocessing management for mapping
     q_in = mp.Queue()
@@ -99,19 +105,21 @@ def _parallel_progbar_launch(mapper, iterable, nprocs=mp.cpu_count(), starmap=Fa
         p.join()
 
 
-def parallel_progbar(mapper, iterable, nprocs=mp.cpu_count(), starmap=False, flatmap=False, shuffle=False,
+def parallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
                      verbose=True, verbose_flatmap=None):
-    """
+    """Performs a parallel mapping of the given iterable, reporting a progress bar as values get returned
 
-    :param mapper:
-    :param iterable:
-    :param nprocs:
-    :param starmap:
-    :param flatmap:
-    :param shuffle:
-    :param verbose:
-    :param verbose_flatmap:
-    :return:
+    :param mapper: The mapping function to apply to elements of the iterable
+    :param iterable: The iterable to map
+    :param nprocs: The number of processes (defaults to the number of cpu's)
+    :param starmap: If true, the iterable is expected to contain tuples and the mapper function gets each element of a
+        tuple as an argument
+    :param flatmap: If true, flatten out the returned values if the mapper function returns a list of objects
+    :param shuffle: If true, randomly sort the elements before processing them. This might help provide more uniform
+        runtimes if processing different objects takes different amounts of time.
+    :param verbose: Whether or not to print the progress bar
+    :param verbose_flatmap: If performing a flatmap, whether or not to report each object as it's returned
+    :return: A list of the returned objects, in the same order as provided
     """
 
     results = list(_parallel_progbar_launch(mapper, iterable, nprocs, starmap, flatmap, shuffle, verbose,
@@ -120,20 +128,23 @@ def parallel_progbar(mapper, iterable, nprocs=mp.cpu_count(), starmap=False, fla
     return [x for i, x in sorted(results, key=lambda p: p[0])]
 
 
-def iparallel_progbar(mapper, iterable, nprocs=mp.cpu_count(), starmap=False, flatmap=False, shuffle=False,
+def iparallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
                       verbose=True, verbose_flatmap=None, max_cache=-1):
-    """
+    """Performs a parallel mapping of the given iterable, reporting a progress bar as values get returned. Yields
+    objects as soon as they're computed, but does not guarantee that they'll be in the correct order.
 
-    :param mapper:
-    :param iterable:
-    :param nprocs:
-    :param starmap:
-    :param flatmap:
-    :param shuffle:
-    :param verbose:
-    :param verbose_flatmap:
+    :param mapper: The mapping function to apply to elements of the iterable
+    :param iterable: The iterable to map
+    :param nprocs: The number of processes (defaults to the number of cpu's)
+    :param starmap: If true, the iterable is expected to contain tuples and the mapper function gets each element of a
+        tuple as an argument
+    :param flatmap: If true, flatten out the returned values if the mapper function returns a list of objects
+    :param shuffle: If true, randomly sort the elements before processing them. This might help provide more uniform
+        runtimes if processing different objects takes different amounts of time.
+    :param verbose: Whether or not to print the progress bar
+    :param verbose_flatmap: If performing a flatmap, whether or not to report each object as it's returned
     :param max_cache:
-    :return:
+    :return: A list of the returned objects, in whatever order they're done being computed
     """
 
     results = _parallel_progbar_launch(mapper, iterable, nprocs, starmap, flatmap, shuffle, verbose,

@@ -98,3 +98,6 @@ A key feature not yet demonstrated is the ability to add dependencies amongst pr
 This isn't the complete feature set of the decorator, but it's a good initial taste of what can be accomplished using it.
 
 .. autoclass:: miniutils.caching.CachedProperty
+    :members:
+
+    .. automethod:: __init__

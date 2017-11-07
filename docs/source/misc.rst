@@ -100,7 +100,15 @@ This makes sense, but is somewhat annoying when parameters aren't required, such
     def g(i):
         return i
 
-    @deco  # Now this works too, just like above
+    @deco(True)  # This still works
+    def h(i):
+        return i
+
+    @deco(return_name=True)  # As does this
+    def k(i):
+        return i
+
+    @deco  # Now this works too!
     def f(i):
         return i
 

@@ -48,3 +48,6 @@ For example, to execute an external function, you can use the class as a wrapper
     uname = MakePython2('os.uname', imports=['os'], copy_function_body=False).function
 
 .. autoclass:: miniutils.py2_wrap.MakePython2
+    :members:
+
+    .. automethod:: __init__

@@ -86,13 +86,16 @@ class CachedProperty:
     caches = []
 
     def __init__(self, *affects, settable=False, threadsafe=True, is_collection=False, allow_collection_mutation=True):
-        """
+        """Marks this property to be cached. Delete this property to remove the cached value and force it to be rerun.
 
-        :param affects:
-        :param settable:
-        :param threadsafe:
-        :param is_collection:
-        :param allow_collection_mutation:
+        :param affects: Strings that list the names of the other properties in this class that are directly invalidated
+         when this property's value is altered
+        :param settable: Whether or not to allow this property to have values assigned directly to it
+        :param threadsafe: Whether or not to restrict execution of this property's code to a single thread at a time
+         (safe for recursive calls)
+        :param is_collection: Whether or not this property returns a collection (currently supports lists, sets, and
+         dictionaries; others might not work exactly as expected)
+        :param allow_collection_mutation: Whether or not the returned collection should allow its values to be altered
         """
         self.affected_properties = affects
         self.settable = settable
