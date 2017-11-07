@@ -12,5 +12,7 @@ setup(
     install_requires=[
         'tqdm',
         'pycontracts',
-    ]
+    ],
+    download_url='https://github.com/scnerd/miniutils/archive/0.0.1.tar.gz',
+    keywords=['miniutils', 'utilities', 'decorators', 'minimal'],
 )
