@@ -12,6 +12,10 @@ Welcome to miniutils's documentation!
 .. image:: https://travis-ci.org/scnerd/miniutils.svg?branch=master
     :target: https://travis-ci.org/scnerd/miniutils
 
+.. image:: https://readthedocs.org/projects/miniutils/badge/?version=latest
+    :target: http://miniutils.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
