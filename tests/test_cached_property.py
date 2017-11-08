@@ -40,7 +40,7 @@ class Matrix:
 
     @CachedProperty('pca_basis')
     def covariance(self):
-        return Matrix(self.array.T @ self.array)
+        return Matrix(self.array.T.dot(self.array))
 
     @CachedProperty()
     def pca_basis(self):

@@ -2,4 +2,5 @@ tqdm
 pycontracts
 coveralls
 coverage
-
+numpy
+unittest
