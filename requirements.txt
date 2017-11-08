@@ -1,4 +1,5 @@
 tqdm
 pycontracts
 coveralls
+coverage
 

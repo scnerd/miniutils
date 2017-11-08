@@ -8,4 +8,5 @@ MANIFEST
 dist
 build
 .coverage
+*.log
 
