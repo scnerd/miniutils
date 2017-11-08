@@ -19,3 +19,37 @@ This module provides numerous helper utilities for Python3.X code to add functio
 - Simple lazy-compute and caching of class properties, including dependency chaining
 - Executing Python2 code from within a Python3 program
 - More intuitive contract decorator (leveraging ``pycontracts``)
+
+Installation
+------------
+
+As usual, you can install the latest code version directly from Github::
+
+    pip install git+https://github.com/scnerd/miniutils
+
+Or you can ``pip`` install the latest release from PyPi::
+
+   pip install miniutils
+
+Examples
+--------
+
+To get started, you can import your desired utilities directly from ``miniutils``. For example, to use the ``CachedProperty`` decorator::
+
+   from miniutils import CachedProperty
+
+   class MyClass:
+      @CachedProperty
+      def attribute(self):
+         return some_slow_computation(self)
+
+Or to use the progress bar utilities::
+
+   from miniutils import progbar, parallel_progbar
+
+   def mapper(x):
+      return x**2
+
+   assert [mapper(i) for i in progbar(100)] == parallel_progbar(mapper, range(100))
+
+To see documentation for each feature, look through this documentation or the table of contents above.
