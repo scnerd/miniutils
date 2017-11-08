@@ -4,11 +4,6 @@ from threading import RLock
 import inspect
 
 
-@contextmanager
-def empty_context_manager():
-    yield
-
-
 class CachedCollection:
     IGNORED_GETS = ['get', 'union', 'intersection', 'difference', 'copy']
 
@@ -21,7 +16,10 @@ class CachedCollection:
         return self.collection[item]
 
     def __missing__(self, key):
-        return self.collection.__missing__(key)
+        if not self.allow_update:
+            raise AttributeError("Attempted to perform an action (probably add) an unknown key")
+        self.collection.__missing__(key)
+        self.on_update()
 
     def __setitem__(self, key, value):
         if not self.allow_update:
@@ -159,23 +157,27 @@ class CachedProperty:
         else:
             # TODO: allow custom setter (preferably using the property.setter decorator)
             def inner_setter(inner_self, value):
-                setattr(inner_self, cache_name, value)
+                if self.is_collection:
+                    setattr(inner_self, cache_name, CachedCollection(value, reset_dependents, inner_self,
+                                                                     self.allow_collection_mutation))
+                else:
+                    setattr(inner_self, cache_name, value)
                 setattr(inner_self, flag_name, False)
                 reset_dependents(inner_self)
 
             return property(fget=inner_getter, fset=inner_setter, fdel=inner_deleter, doc=self.f.__doc__)
 
 
-def _get_class_that_defined_method(method):
-    """https://stackoverflow.com/questions/3589311/get-defining-class-of-unbound-method-object-in-python-3"""
-    if inspect.ismethod(method):
-        for cls in inspect.getmro(method.__self__.__class__):
-            if cls.__dict__.get(method.__name__) is method:
-                return cls
-        method = method.__func__  # fallback to __qualname__ parsing
-    if inspect.isfunction(method):
-        cls = getattr(inspect.getmodule(method),
-                      method.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0])
-        if isinstance(cls, type):
-            return cls
-    return getattr(method, '__objclass__', None)  # handle special descriptor objects
+# def _get_class_that_defined_method(method):
+#     """https://stackoverflow.com/questions/3589311/get-defining-class-of-unbound-method-object-in-python-3"""
+#     if inspect.ismethod(method):
+#         for cls in inspect.getmro(method.__self__.__class__):
+#             if cls.__dict__.get(method.__name__) is method:
+#                 return cls
+#         method = method.__func__  # fallback to __qualname__ parsing
+#     if inspect.isfunction(method):
+#         cls = getattr(inspect.getmodule(method),
+#                       method.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0])
+#         if isinstance(cls, type):
+#             return cls
+#     return getattr(method, '__objclass__', None)  # handle special descriptor objects

@@ -7,6 +7,10 @@ class TestProgbar(TestCase):
         lst = list(range(10))
         self.assertEqual(list(progbar(lst)), lst)
 
+    def test_progbar_quiet(self):
+        lst = list(range(10))
+        self.assertEqual(list(progbar(lst, verbose=False)), lst)
+
     def test_progbar_int(self):
         n = 10
         lst = list(range(n))
@@ -17,6 +21,23 @@ class TestProgbar(TestCase):
             return i ** 2
         n = list(range(100))
         self.assertSequenceEqual(parallel_progbar(mapper, n), [i**2 for i in n])
+
+    def test_parallel_generator(self):
+        def gen(i):
+            k = 0
+            while k < i:
+                yield k
+                k += 1
+        def mapper(i):
+            return i ** 2
+        n = gen(100)
+        self.assertSequenceEqual(parallel_progbar(mapper, n), [i**2 for i in range(100)])
+
+    def test_parallel_shuffle(self):
+        def mapper(i):
+            return i ** 2
+        n = list(range(100))
+        self.assertSequenceEqual(parallel_progbar(mapper, n, shuffle=True), [i**2 for i in n])
 
     def test_parallel_progbar_flatmap(self):
         def mapper(i):

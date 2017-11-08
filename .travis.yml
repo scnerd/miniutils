@@ -11,7 +11,7 @@ install:
  - pip install .
  - pip install -r requirements.txt
 
-script: coverage run --source miniutils -m unittest discover -s tests
+script: coverage run --source miniutils --omit miniutils/py2_template.py -m unittest discover -s tests
 
 after_success:
     coveralls

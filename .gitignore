@@ -9,4 +9,4 @@ dist
 build
 .coverage
 *.log
-
+htmlcov
