@@ -3,4 +3,3 @@ pycontracts
 coveralls
 coverage
 numpy
-unittest
