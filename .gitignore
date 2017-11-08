@@ -7,4 +7,5 @@ logs
 MANIFEST
 dist
 build
+.coverage
 
