@@ -1,3 +1,9 @@
+.. image:: https://coveralls.io/repos/github/scnerd/miniutils/badge.svg?branch=master
+    :target: https://coveralls.io/github/scnerd/miniutils?branch=master
+
+.. image:: https://travis-ci.org/scnerd/miniutils.svg?branch=master
+    :target: https://travis-ci.org/scnerd/miniutils
+
 Overview
 --------
 
