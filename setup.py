@@ -13,6 +13,7 @@ setup(
     install_requires=[
         'tqdm',
         'pycontracts',
+        'coloredlogs',
     ],
     download_url='https://github.com/scnerd/miniutils',
     keywords=['miniutils', 'utilities', 'decorators', 'minimal'],

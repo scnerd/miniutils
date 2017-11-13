@@ -1,22 +1,10 @@
-from unittest import TestCase
-import numpy as np
-from contextlib import contextmanager
-from miniutils.caching import CachedProperty
-from io import StringIO
-import sys
 from collections import defaultdict
+from unittest import TestCase
 
+import numpy as np
 
-@contextmanager
-def captured_output():
-    # https://stackoverflow.com/questions/4219717/how-to-assert-output-with-nosetest-unittest-in-python
-    no, ne = StringIO(), StringIO
-    oo, oe = sys.stdout, sys.stderr
-    try:
-        sys.stdout, sys.stderr = no, ne
-        yield sys.stdout, sys.stderr
-    finally:
-        sys.stdout, sys.stderr = oo, oe
+from miniutils.caching import CachedProperty
+from miniutils.capture_output import captured_output
 
 
 class Matrix:
@@ -70,22 +58,23 @@ class Printer:
         return str(self.c ** 2)
 
 
+# noinspection PyArgumentList
 class CollectionProperties:
     @CachedProperty('target', is_collection=True)
     def basic_list(self):
-        return [1,2,3]
+        return [1, 2, 3]
 
     @CachedProperty('target', settable=True, is_collection=True)
     def settable_list(self):
-        return [1,2,3]
+        return [1, 2, 3]
 
     @CachedProperty('target', settable=True, is_collection=True, allow_collection_mutation=False)
     def settable_immutable_list(self):
-        return [1,2,3]
+        return [1, 2, 3]
 
     @CachedProperty('target', is_collection=True)
     def basic_set(self):
-        return {1,2,3}
+        return {1, 2, 3}
 
     @CachedProperty('target', is_collection=True)
     def basic_dict(self):
@@ -131,25 +120,24 @@ class TestCachedProperty(TestCase):
         self.assertFalse(m.covariance._need_eigen)
 
     def test_printer_assign_iterable(self):
-        with captured_output() as (out, err):
+        with captured_output() as (out, err, log):
             p = Printer()
             self.assertEqual(p.c, 500)
             p.b[0] = 0
             self.assertEqual(p.c, 495)
             self.assertEqual(p.c, 495)
-            p.b = [1,2,3]
+            p.b = [1, 2, 3]
             self.assertEqual(p.c, 6)
             self.assertEqual(p.c, 6)
             del p.a
             self.assertEqual(p.d, '250000')
-        out = out.getvalue()
+        out = out()
         self.assertEqual(out.strip(),
                          '\n'.join('Running {}'.format(s) for s in list('cbaccdcba')))
 
     def test_cached_collection_mutable(self):
         p = Printer()
         self.assertEqual(p.b[0], p.a)
-
 
     def test_unsettable(self):
         i = Printer()

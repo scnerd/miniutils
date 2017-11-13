@@ -10,3 +10,4 @@ build
 .coverage
 *.log
 htmlcov
+*.ipynb_checkpoints

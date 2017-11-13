@@ -1,7 +1,7 @@
 import functools
-from contextlib import contextmanager
+#from contextlib import contextmanager
 from threading import RLock
-import inspect
+#import inspect
 
 
 class CachedCollection:
