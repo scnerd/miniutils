@@ -120,7 +120,7 @@ class TestCachedProperty(TestCase):
         self.assertFalse(m.covariance._need_eigen)
 
     def test_printer_assign_iterable(self):
-        with captured_output() as (out, err, log):
+        with captured_output() as (out, err):
             p = Printer()
             self.assertEqual(p.c, 500)
             p.b[0] = 0
@@ -137,7 +137,8 @@ class TestCachedProperty(TestCase):
 
     def test_cached_collection_mutable(self):
         p = Printer()
-        self.assertEqual(p.b[0], p.a)
+        with captured_output():
+            self.assertEqual(p.b[0], p.a)
 
     def test_unsettable(self):
         i = Printer()

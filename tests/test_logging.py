@@ -8,7 +8,7 @@ class TestProgbar(TestCase):
     def test_logging_imports(self):
         old_sys_modules = dict(sys.modules)
 
-        with captured_output() as (out, err, log):
+        with captured_output() as (out, err):
             import miniutils.logs_base as logger
             logger.logger = None  # This is default, but might be altered by another earlier test
             logger.critical('__1__')

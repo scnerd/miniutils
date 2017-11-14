@@ -26,7 +26,7 @@ def enable_logging(log_level='NOTSET', *, logdir=None, use_colors=True, capture_
     import __main__ as main
     launch_script = os.path.basename(getattr(main, '__file__', main.__name__))
 
-    plain_formatter = logging.Formatter(fmt=format_str, style='{')
+    plain_formatter = logging.Formatter(fmt=format_str)
     if use_colors:
         try:
             import coloredlogs
@@ -66,17 +66,23 @@ def enable_logging(log_level='NOTSET', *, logdir=None, use_colors=True, capture_
 
     if logdir is not None:
         log_file_handler = logging.handlers.RotatingFileHandler(logdir, maxBytes=2e20, backupCount=10)
+        log_file_handler.name = 'log_file_handler'
         log_file_handler.setFormatter(plain_formatter)
         log_file_handler.setLevel(logging.NOTSET)
         logs_base.logger.addHandler(log_file_handler)
 
-    std_out_handler = logging.StreamHandler(sys.stderr)
-    std_out_handler.setFormatter(color_formatter)
-    std_out_handler.setLevel(logging.NOTSET)
-    logs_base.logger.addHandler(std_out_handler)
+    std_err_handler = logging.StreamHandler(sys.stderr)
+    std_err_handler.name = 'stderr_colored_handler'
+    std_err_handler.setFormatter(color_formatter)
+    std_err_handler.setLevel(logging.NOTSET)
+    logs_base.logger.addHandler(std_err_handler)
 
     logger = logs_base.logger
     return logs_base.logger
+
+def disable_logging():
+    global logger
+    logs_base.logger = logger = None
 
 
 enable_logging()
