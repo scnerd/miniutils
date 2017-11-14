@@ -1,3 +1,6 @@
+API
++++
+
 Caching
 =======
 
@@ -30,22 +33,22 @@ Miscellaneous
 =============
 
 Magic Contracting
-+++++++++++++++++
+-----------------
 
 .. autofunction:: miniutils.magic_contract.magic_contract
 
 Simplifying Decorators
-++++++++++++++++++++++
+----------------------
 
 .. autofunction:: miniutils.opt_decorator.optional_argument_decorator
 
 Logging
-+++++++
+-------
 
 .. autofunction:: miniutils.logs.enable_logging
 
 Timing
-++++++
+------
 
 .. autofunction:: miniutils.timing.timed_call
 
