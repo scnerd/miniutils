@@ -19,8 +19,9 @@ class TestProgbar(TestCase):
     def test_parallel_progbar(self):
         def mapper(i):
             return i ** 2
+
         n = list(range(100))
-        self.assertSequenceEqual(parallel_progbar(mapper, n), [i**2 for i in n])
+        self.assertSequenceEqual(parallel_progbar(mapper, n), [i ** 2 for i in n])
 
     def test_parallel_generator(self):
         def gen(i):
@@ -28,20 +29,24 @@ class TestProgbar(TestCase):
             while k < i:
                 yield k
                 k += 1
+
         def mapper(i):
             return i ** 2
+
         n = gen(100)
-        self.assertSequenceEqual(parallel_progbar(mapper, n), [i**2 for i in range(100)])
+        self.assertSequenceEqual(parallel_progbar(mapper, n), [i ** 2 for i in range(100)])
 
     def test_parallel_shuffle(self):
         def mapper(i):
             return i ** 2
+
         n = list(range(100))
-        self.assertSequenceEqual(parallel_progbar(mapper, n, shuffle=True), [i**2 for i in n])
+        self.assertSequenceEqual(parallel_progbar(mapper, n, shuffle=True), [i ** 2 for i in n])
 
     def test_parallel_progbar_flatmap(self):
         def mapper(i):
             return range(i)
+
         n = list(range(100))
         self.assertSequenceEqual(parallel_progbar(mapper, n, flatmap=True),
                                  [k for i in n for k in range(i)])
@@ -49,6 +54,7 @@ class TestProgbar(TestCase):
     def test_parallel_progbar_starmap(self):
         def mapper(x, p):
             return x ** p
+
         n = [(1, 5), (2, 0), (3, 4), (0, 100)]
         self.assertSequenceEqual(parallel_progbar(mapper, n, starmap=True),
                                  [x ** p for x, p in n])
@@ -56,6 +62,7 @@ class TestProgbar(TestCase):
     def test_parallel_progbar_flatmap_starmap(self):
         def mapper(a, b):
             return range(a, b)
+
         n = [(1, 5), (2, 0), (3, 4), (0, 100)]
         self.assertSequenceEqual(parallel_progbar(mapper, n, flatmap=True, starmap=True),
                                  [k for a, b in n for k in range(a, b)])
@@ -63,12 +70,14 @@ class TestProgbar(TestCase):
     def test_iparallel_progbar(self):
         def mapper(i):
             return i ** 2
+
         n = list(range(100))
-        self.assertSequenceEqual(list(sorted(iparallel_progbar(mapper, n))), [i**2 for i in n])
+        self.assertSequenceEqual(list(sorted(iparallel_progbar(mapper, n))), [i ** 2 for i in n])
 
     def test_iparallel_progbar_flatmap(self):
         def mapper(i):
             return range(i)
+
         n = list(range(100))
         self.assertSequenceEqual(list(sorted(iparallel_progbar(mapper, n, flatmap=True))),
                                  list(sorted([k for i in n for k in range(i)])))
@@ -76,6 +85,7 @@ class TestProgbar(TestCase):
     def test_iparallel_progbar_flatmap_starmap(self):
         def mapper(a, b):
             return range(a, b)
+
         n = [(1, 5), (2, 0), (3, 4), (0, 100)]
         self.assertSequenceEqual(list(sorted(iparallel_progbar(mapper, n, flatmap=True, starmap=True))),
                                  list(sorted([k for a, b in n for k in range(a, b)])))
@@ -83,6 +93,7 @@ class TestProgbar(TestCase):
     def test_iparallel_progbar_starmap(self):
         def mapper(x, p):
             return x ** p
+
         n = [(1, 5), (2, 0), (3, 4), (0, 100)]
         self.assertSequenceEqual(list(sorted(iparallel_progbar(mapper, n, starmap=True))),
                                  list(sorted([x ** p for x, p in n])))

@@ -1,5 +1,6 @@
 tqdm
 pycontracts
+coloredlogs
 coveralls
 coverage
 numpy

@@ -1,17 +1,17 @@
 import itertools
 import multiprocessing as mp
 import random
-import functools
+import warnings
 
 try:
     from tqdm import tqdm as _tqdm
     try:  # pragma: nocover
         # Check if we're in a Jupyter notebook... if so, use the ipywidgets progress bar instead
-        # noinspection PyUnresolvedReferences
-        cfg = get_ipython().config
-        if cfg['IPKernelApp']['parent_appname'] == 'ipython-notebook':
+        from IPython import get_ipython
+        if type(get_ipython()).__module__.startswith('ipykernel.'):
             from tqdm import tqdm_notebook as _tqdm
-    except NameError:
+    except (ImportError, NameError):
+        # IPython isn't even installed, or we're not in it
         pass
 except ImportError:  # pragma: nocover
     # noinspection PyUnusedLocal
@@ -102,7 +102,10 @@ def _parallel_progbar_launch(mapper, iterable, nprocs=None, starmap=False, flatm
 
     # Clean up
     for p in procs:
-        p.join()
+        try:
+            p.join(1)
+        except TimeoutError:
+            warnings.warn("parallel_progbar mapping process failed to close properly (check error output)")
 
 
 def parallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
@@ -122,9 +125,7 @@ def parallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=False
     :return: A list of the returned objects, in the same order as provided
     """
 
-    results = list(_parallel_progbar_launch(mapper, iterable, nprocs, starmap, flatmap, shuffle, verbose,
-                                            verbose_flatmap))
-
+    results = _parallel_progbar_launch(mapper, iterable, nprocs, starmap, flatmap, shuffle, verbose, verbose_flatmap)
     return [x for i, x in sorted(results, key=lambda p: p[0])]
 
 

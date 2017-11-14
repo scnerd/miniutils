@@ -1,6 +1,7 @@
 from unittest import TestCase
 from miniutils.py2_wrap import MakePython2
 
+
 class TestMakePython2(TestCase):
     def test_wrapper_basic(self):
         @MakePython2()
@@ -26,6 +27,7 @@ class TestMakePython2(TestCase):
         self.assertGreaterEqual(sys.version_info[0], 3)
 
     def test_wrapper_globals(self):
+        # noinspection PyUnresolvedReferences
         @MakePython2(global_values={'x': 5})
         def add(y):
             return x + y

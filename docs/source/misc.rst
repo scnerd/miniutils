@@ -113,3 +113,88 @@ This makes sense, but is somewhat annoying when parameters aren't required, such
         return i
 
 .. autofunction:: miniutils.opt_decorator.optional_argument_decorator
+
+Logging Made Easy
+=================
+
+The standard ``logging`` module provides a lot of great functionality, but there are a few simplifications missing:
+
+1. Intuitive colored logging to terminal
+2. Fallback logging utilities when "logging" should only be enabled in certain contexts
+3. "One-click" logging setup
+
+As a slight simplification, ``miniutils`` provides a wrapper around the ``logging`` module to provide these features.
+
+Usage
++++++
+
+To use the logging features listed below, just import the logger::
+
+    from miniutils.logs import logger
+
+If you want to use logging when available, but fall back to simply ``print`` to ``stderr`` when the logger isn't initialized elsewhere (for example, if you're writing a helper module that shouldn't dictate the logging format used in the user code), you can obtain a proxy logger object::
+
+    from miniutils import logs_base as logger
+
+This module has ``info``, ``warn``, ``warning``, ``error``, ``critical``, and ``log`` calls that use the logger when available, or fall back to a simple ``print`` statement otherwise. If the logger gets loaded from ``miniutils.logs`` later, these calls get swapped out automatically for their full-featured logger alternatives.
+
+To change the logger's configuration, do something like the following::
+
+    from miniutils.logs import enable_logging
+    enable_logging(fmt_str='$(asctime) ( %(levelname) ) - $(message)')
+
+This will swap out the logger and handlers that the rest of the logging utilities use.
+
+.. autofunction:: miniutils.logs.enable_logging
+
+Colored Logging
++++++++++++++++
+
+The ``coloredlogs`` module didn't quite work as expected when I tried to use it. It provides lots of handles and controls, but wasn't quite as intuitive as I expected it to be. To provide this more intuitive functionality, I wrap ``coloredlogs`` with a custom formatter that behaves more like expected:
+
+- Don't assume the foreground color (it assumes black-on-white by default; I switch this to pulling the foreground color from the currently active color swatch)
+- Uses case-sensitive match for level names (e.g., 'DEBUG', 'INFO', etc.), which seems silly. I monkey-patch this to be case insensitive
+- Doesn't color aliases properly, even though it nominally supports name aliases
+
+
+Timing
+======
+
+Simple ``printf``-like timing utilities when proper profiling won't quite work.
+
+Timing Functions
+++++++++++++++++
+
+To make a timed call to a function::
+
+    from miniutils.timing import timed_call
+
+    def f(a, *, x=1, sleep_dur=0.1):
+        sleep(sleep_dur)
+        return a * x
+
+    result = timed_call(f, 2, x=3, sleep_dur=0.11)
+    # Prints that the function took ~0.11 seconds to run
+
+To make all calls to a function timed::
+
+    from miniutils.timing import make_timed
+
+    @make_timed
+    def g(a, *, x=1, sleep_dur=0.1):
+        sleep(sleep_dur)
+        return a * x
+
+    g(2, x=3, sleep_dur=0.11)
+
+Timing Blocks
++++++++++++++
+
+Use ``tic``/``toc`` to time and report the run times of different chunks of code::
+
+    toc = tic(fmt='__{message}:{diff:0.1f}:{total:0.1f}__')  # Just marks start time
+    sleep(0.2)
+    toc('1')  # Reports that it's been ~0.2 seconds since tic, and ~0.2 seconds total
+    sleep(.1)
+    toc('2')  # Reports that it's been ~0.1 seconds since tic, and ~0.3 seconds total
+
