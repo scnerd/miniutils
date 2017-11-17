@@ -151,11 +151,11 @@ class UnrollTransformer(ast.NodeTransformer):
 
 @optional_argument_decorator
 def unroll(return_source=False, **kwargs):
-    """Unrolls
+    """Unrolls constant loops in the decorated function
 
-    :param return_source:
-    :param kwargs:
-    :return:
+    :param return_source: Returns the unrolled function's source code instead of compiling it
+    :param kwargs: Any other environmental variables to provide during unrolling
+    :return: The unrolled function, or its source code if requested
     """
     # TODO: Support zipping
     # TODO: Support sets/dicts

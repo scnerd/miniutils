@@ -346,3 +346,5 @@ Currently not-yet-supported features include:
 - Handling constant sets and dictionaries (since the values contained in the AST's, not the AST nodes themselves, must be uniquely identified)
 - Tuple assignments (``a, b = 3, 4``)
 - ``zip``, ``reversed``, and other known operators, when performed on definition-time constant iterables
+
+.. autofunction:: miniutils.pragma.unroll
