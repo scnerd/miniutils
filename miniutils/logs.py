@@ -26,7 +26,12 @@ def enable_logging(log_level='NOTSET', *, logdir=None, use_colors=True, capture_
     import __main__ as main
     launch_script = os.path.basename(getattr(main, '__file__', main.__name__))
 
-    plain_formatter = logging.Formatter(fmt=format_str)
+    class AddLaunchScript(logging.Formatter):
+        def format(self, record):
+            record.launch_script = launch_script
+            return super().format(record)
+
+    plain_formatter = AddLaunchScript(fmt=format_str)
     if use_colors:
         try:
             import coloredlogs
@@ -65,7 +70,8 @@ def enable_logging(log_level='NOTSET', *, logdir=None, use_colors=True, capture_
         color_formatter = plain_formatter
 
     if logdir is not None:
-        log_file_handler = logging.handlers.RotatingFileHandler(logdir, maxBytes=2e20, backupCount=10)
+        log_file_handler = logging.handlers.RotatingFileHandler(os.path.join(logdir, 'app.log'), maxBytes=2e20,
+                                                                backupCount=10)
         log_file_handler.name = 'log_file_handler'
         log_file_handler.setFormatter(plain_formatter)
         log_file_handler.setLevel(logging.NOTSET)

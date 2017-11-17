@@ -4,9 +4,14 @@ from unittest import TestCase
 from miniutils.capture_output import captured_output
 
 
-class TestProgbar(TestCase):
+class TestLogging(TestCase):
+    def setUp(self):
+        from miniutils.logs import disable_logging
+        disable_logging()
+
     def test_logging_imports(self):
-        old_sys_modules = dict(sys.modules)
+        from miniutils.logs import disable_logging
+        disable_logging()
 
         with captured_output() as (out, err):
             import miniutils.logs_base as logger
@@ -24,5 +29,17 @@ class TestProgbar(TestCase):
         self.assertEqual(second.lower(), 'critical|__2__')
         self.assertEqual(third.lower(), 'critical|__3__')
 
-        sys.modules = old_sys_modules
+    def test_log_dir(self):
+        import tempfile
+        import os
+
+        with tempfile.TemporaryDirectory() as dir:
+            from miniutils.logs import enable_logging
+            log = enable_logging(logdir=dir)
+            log.critical('TEST')
+            import time
+            time.sleep(1)
+
+            #print("\n\n".join(open(f).read() for f in os.listdir(dir) if os.path.isfile(f)))
+            self.assertTrue(any('TEST' in open(f).read() for f in os.listdir(dir) if os.path.isfile(f)))
 

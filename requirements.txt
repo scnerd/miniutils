@@ -5,3 +5,4 @@ astor
 coveralls
 coverage
 numpy
+nosetests
