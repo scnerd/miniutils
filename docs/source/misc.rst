@@ -126,7 +126,7 @@ The standard ``logging`` module provides a lot of great functionality, but there
 As a slight simplification, ``miniutils`` provides a wrapper around the ``logging`` module to provide these features.
 
 Usage
-+++++
+-----
 
 To use the logging features listed below, just import the logger::
 
@@ -148,7 +148,7 @@ This will swap out the logger and handlers that the rest of the logging utilitie
 .. autofunction:: miniutils.logs.enable_logging
 
 Colored Logging
-+++++++++++++++
+---------------
 
 The ``coloredlogs`` module didn't quite work as expected when I tried to use it. It provides lots of handles and controls, but wasn't quite as intuitive as I expected it to be. To provide this more intuitive functionality, I wrap ``coloredlogs`` with a custom formatter that behaves more like expected:
 
@@ -163,10 +163,11 @@ Timing
 Simple ``printf``-like timing utilities when proper profiling won't quite work.
 
 Timing Functions
-++++++++++++++++
+----------------
 
 To make a timed call to a function::
 
+    from time import sleep
     from miniutils.timing import timed_call
 
     def f(a, *, x=1, sleep_dur=0.1):
@@ -174,10 +175,11 @@ To make a timed call to a function::
         return a * x
 
     result = timed_call(f, 2, x=3, sleep_dur=0.11)
-    # Prints that the function took ~0.11 seconds to run
+    # "Call to 'f' took 0.110240s"
 
 To make all calls to a function timed::
 
+    from time import sleep
     from miniutils.timing import make_timed
 
     @make_timed
@@ -186,15 +188,28 @@ To make all calls to a function timed::
         return a * x
 
     g(2, x=3, sleep_dur=0.11)
+    # "Call to 'g' took 0.110242s"
+
+.. autofunction:: miniutils.timing.timed_call
+
+.. autofunction:: miniutils.timing.make_timed
 
 Timing Blocks
-+++++++++++++
+-------------
 
 Use ``tic``/``toc`` to time and report the run times of different chunks of code::
 
-    toc = tic(fmt='__{message}:{diff:0.1f}:{total:0.1f}__')  # Just marks start time
-    sleep(0.2)
-    toc('1')  # Reports that it's been ~0.2 seconds since tic, and ~0.2 seconds total
-    sleep(.1)
-    toc('2')  # Reports that it's been ~0.1 seconds since tic, and ~0.3 seconds total
+    from time import sleep
+    from miniutils.timing import tic
 
+    toc = tic()  # Just marks start time
+    sleep(0.2)
+    toc('Slept for 0.2 seconds')
+    # "sample_timing.py:6 - Slept for 0.2 seconds - 0.200329s (total=0.2s)"
+    sleep(.1)
+    toc('Slept for 0.1 seconds')
+    # "sample_timing.py:8 - Slept for 0.1 seconds - 0.100217s (total=0.3s)"
+
+This utility is just less verbose than tracking various times yourself. The output is printed to the log for later review. It can also accept a custom print format string, including information about the code calling ``toc()`` and runtimes since the last ``tic``/``toc``.
+
+.. autofunction:: miniutils.timing.tic

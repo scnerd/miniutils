@@ -31,6 +31,7 @@ def tic(log_level='DEBUG', fmt="{file}:{line} - {message} - {diff:0.6f}s (total=
 
     :param log_level: The level at which to log block run times
     :param fmt: The format string to use when logging times. Available arguments include:
+
                 - file, line, func, code_text: The stack frame information which called this timer
                 - diff: The time since the last timer printout was called
                 - total: The time since this timing block was started
