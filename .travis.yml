@@ -3,13 +3,12 @@ python:
  - "3.5"
  - "3.6"
  - "nightly"
- - "pypy3"
 
 install:
  - pip install .
  - pip install -r requirements.txt
 
-script: coverage run --source miniutils --omit miniutils/py2_template.py -m unittest discover -s tests
+script: nosetests --processes=4 --with-coverage tests
 
 after_success:
     coveralls

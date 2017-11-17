@@ -14,6 +14,7 @@ setup(
         'tqdm',
         'pycontracts',
         'coloredlogs',
+        'astor',
     ],
     download_url='https://github.com/scnerd/miniutils',
     keywords=['miniutils', 'utilities', 'decorators', 'minimal'],
