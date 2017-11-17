@@ -17,7 +17,7 @@ class DictStack:
         for dct in self.dicts[::-1]:
             if item in dct:
                 return dct[item]
-        raise KeyError()
+        raise KeyError("Can't find '{}' anywhere in the function's context".format(item))
 
     def __delitem__(self, item):
         for dct in self.dicts[::-1]:
@@ -159,10 +159,10 @@ def unroll(return_source=False, **kwargs):
     """
     # TODO: Support zipping
     # TODO: Support sets/dicts
-    # TODO: Support provided constants (i.e. "x=5; range(x)")
     def inner(f):
         f_mod, f_body, f_file = _function_ast(f)
         glbls = f.__globals__
+        print(glbls)
         trans = UnrollTransformer(DictStack(glbls, kwargs))
         f_mod.body[0].decorator_list = []
         f_mod = trans.visit(f_mod)

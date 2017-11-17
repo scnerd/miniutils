@@ -194,6 +194,22 @@ class TestUnroll(TestCase):
         ''')
         self.assertEqual(f.strip(), result.strip())
 
+    def test_external_definition(self):
+        # Known bug: this works when defined as a kwarg, but not as an external variable, but ONLY in unittests...
+        # External variables work in practice
+        @pragma.unroll(return_source=True, a=range)
+        def f():
+            for i in a(3):
+                print(i)
+
+        result = dedent('''
+        def f():
+            print(0)
+            print(1)
+            print(2)
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
 
 
 class TestDictStack(TestCase):
