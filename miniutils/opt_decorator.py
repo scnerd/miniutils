@@ -16,7 +16,7 @@ def optional_argument_decorator(_decorator):
         decorator = _decorator(*args, **kwargs)
 
         def inner_decorator_maker(_func):
-            return functools.wraps(_func)(decorator(_func))
+            return decorator(_func)
 
         if func:
             return inner_decorator_maker(func)
