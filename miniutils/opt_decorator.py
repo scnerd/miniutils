@@ -15,12 +15,9 @@ def optional_argument_decorator(_decorator):
 
         decorator = _decorator(*args, **kwargs)
 
-        def inner_decorator_maker(_func):
-            return decorator(_func)
-
         if func:
-            return inner_decorator_maker(func)
+            return decorator(func)
         else:
-            return inner_decorator_maker
+            return decorator
 
     return inner_decorator_make

@@ -348,3 +348,8 @@ Currently not-yet-supported features include:
 - ``zip``, ``reversed``, and other known operators, when performed on definition-time constant iterables
 
 .. autofunction:: miniutils.pragma.unroll
+
+Collapse Literals
+-----------------
+
+
