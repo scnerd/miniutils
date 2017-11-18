@@ -306,7 +306,7 @@ class TestCollapseLiterals(TestCase):
             return x[0]
 
         result = dedent('''
-        def f(y):
+        def f():
             x = [1, 2, 3]
             return 1
         ''')

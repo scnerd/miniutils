@@ -32,7 +32,7 @@ class DictStack:
         try:
             self[item]
             return True
-        except:
+        except KeyError:
             return False
 
     def items(self):
@@ -188,14 +188,14 @@ def __collapse_literal(node, ctxt):
     elif isinstance(node, ast.Str):
         return node.s
     elif isinstance(node, ast.Index):
-        return __collapse_literal(node.value)
+        return __collapse_literal(node.value, ctxt)
     elif isinstance(node, ast.Subscript):
         print("SUBSCRIPT")
-        lst = _constant_iterable(node.value)
+        lst = _constant_iterable(node.value, ctxt)
         print(lst)
         if lst is None:
             return node
-        slc = __collapse_literal(node.slice)
+        slc = __collapse_literal(node.slice, ctxt)
         print(slc)
         if isinstance(slc, ast.AST):
             return node
@@ -248,16 +248,23 @@ def _assign_names(node):
 
 # noinspection PyPep8Naming
 class TrackedContextTransformer(ast.NodeTransformer):
-    def __init__(self, ctxt=None, *args, **kwargs):
+    def __init__(self, ctxt=None):
         self.ctxt = ctxt or DictStack()
-        super().__init__(*args, **kwargs)
+        super().__init__()
 
     def visit(self, node):
         import astor
-        orig_node = node
+        orig_node = copy.deepcopy(node)
         new_node = super().visit(node)
-        #print("Converted >>> {} <<< to >>> {} <<<".format(astor.to_source(orig_node).strip(),
-        #                                                  astor.to_source(new_node).strip()))
+
+        orig_node_code = astor.to_source(orig_node).strip()
+        if new_node is None:
+            print("Deleted >>> {} <<<".format(orig_node_code))
+        elif isinstance(new_node, ast.AST):
+            print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
+        elif isinstance(new_node, list):
+            print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
+
         return new_node
 
     def visit_Assign(self, node):
@@ -278,15 +285,6 @@ class TrackedContextTransformer(ast.NodeTransformer):
             for assgn in _assign_names(node.targets):
                 self.ctxt[assgn] = None
         return node
-
-    # def visit_AugAssign(self, node):
-    #     if isinstance(node.target, ast.Name):
-    #         self.ctxt.push({node.target.id: None})
-    #         res = self.visit(ast.Assign(targets=[node.target],
-    #                                     value=ast.BinOp(left=ast.Name(node.target.id, ast.Load()),
-    #                                                     right=node.value, op=node.op)))
-    #         self.ctxt.pop()
-    #         return res
 
 
 # noinspection PyPep8Naming
@@ -341,6 +339,9 @@ class CollapseTransformer(TrackedContextTransformer):
     def visit_Compare(self, node):
         return _collapse_literal(node, self.ctxt)
 
+    def visit_Subscript(self, node):
+        return _collapse_literal(node, self.ctxt)
+
 
 def _make_function_transformer(transformer_type, name):
     @optional_argument_decorator
@@ -377,7 +378,7 @@ def _make_function_transformer(transformer_type, name):
                 if save_source:
                     temp = tempfile.NamedTemporaryFile('w', delete=True)
                     f_file = temp.name
-                print(astor.dump_tree(f_mod))
+                #print(astor.dump_tree(f_mod))
                 exec(compile(f_mod, f_file, 'exec'), glbls)
                 func = glbls[f_mod.body[0].name]
                 if save_source:

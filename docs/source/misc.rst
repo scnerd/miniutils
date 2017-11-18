@@ -352,4 +352,6 @@ Currently not-yet-supported features include:
 Collapse Literals
 -----------------
 
+Collapse literal operations in code to their results, e.g. ``x = 1 + 2`` gets converted to ``x = 3``.
 
+.. autofunction:: miniutils.pragma.collapse_literals
