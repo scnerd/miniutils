@@ -1,5 +1,5 @@
 Property Cache
-++++++++++++++
+==============
 
 In some cases, an object has properties that don't need to be computed until necessary, and once computed are generally static and could just be cached. This could be accomplished using the following simple recipe::
 

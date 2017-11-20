@@ -23,12 +23,13 @@ Welcome to miniutils's documentation!
    progress_bar
    caching
    python2
+   pragma
    misc
    api
 
 
 Overview
---------
+++++++++
 
 This module provides numerous helper utilities for Python3.X code to add functionality with minimal code footprint. It has tools for the following tasks:
 
@@ -38,7 +39,7 @@ This module provides numerous helper utilities for Python3.X code to add functio
 - More intuitive contract decorator (leveraging ``pycontracts``)
 
 Installation
-------------
+++++++++++++
 
 As usual, you can install the latest code version directly from Github::
 
@@ -49,7 +50,7 @@ Or you can ``pip`` install the latest release from PyPi::
    pip install miniutils
 
 Examples
---------
+++++++++
 
 To get started, you can import your desired utilities directly from ``miniutils``. For example, to use the ``CachedProperty`` decorator::
 

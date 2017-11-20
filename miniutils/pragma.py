@@ -1,10 +1,27 @@
-import ast, inspect, sys, copy
-from miniutils.opt_decorator import optional_argument_decorator
+import ast
+import astor
+import copy
+import inspect
+import sys
+import tempfile
 import textwrap
-import warnings, traceback, tempfile
+import traceback
+import warnings
+
+from miniutils.opt_decorator import optional_argument_decorator
+
+# Astor tries to get fancy by failing nicely, but in doing so they fail when traversing non-AST type node properties.
+#  By deleting this custom handler, it'll fall back to the default ast visit pattern, which skips these missing
+# properties. Everything else seems to be implemented, so this will fail silently if it hits an AST node that isn't
+# supported but should be.
+del astor.node_util.ExplicitNodeVisitor.visit
 
 
 class DictStack:
+    """
+    Creates a stack of dictionaries to roughly emulate closures and variable environments
+    """
+
     def __init__(self, *base):
         import builtins
         self.dicts = [dict(builtins.__dict__)] + [dict(d) for d in base]
@@ -56,6 +73,7 @@ class DictStack:
 
 
 def _function_ast(f):
+    """Returns ast for the given function. Gives a tuple of (ast_module, function_body, function_file"""
     assert callable(f)
 
     try:
@@ -67,34 +85,70 @@ def _function_ast(f):
     return root, root.body[0].body, f_file
 
 
-def _constant_iterable(node, ctxt):
+def can_have_side_effect(node, ctxt):
+    if isinstance(node, ast.AST):
+        print("Can {} have side effects?".format(node))
+        if isinstance(node, ast.Call):
+            print("  Yes!")
+            return True
+        else:
+            for field, old_value in ast.iter_fields(node):
+                if isinstance(old_value, list):
+                    return any(can_have_side_effect(n, ctxt) for n in old_value if isinstance(n, ast.AST))
+                elif isinstance(old_value, ast.AST):
+                    return can_have_side_effect(old_value, ctxt)
+                else:
+                    print("  No!")
+                    return False
+    else:
+        return False
+
+
+def _constant_iterable(node, ctxt, avoid_side_effects=True):
+    """If the given node is a known iterable of some sort, return the list of its elements."""
     # TODO: Support zipping
     # TODO: Support sets/dicts?
+    # TODO: Support for reversed, enumerate, etc.
+    # TODO: Support len, in, etc.
     # Check for range(*constants)
-    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and ctxt[node.func.id] == range and all(
-            isinstance(arg, ast.Num) for arg in node.args):
-        return [ast.Num(n) for n in range(*[arg.n for arg in node.args])]
+    def wrap(return_node, name, idx):
+        if not avoid_side_effects:
+            return return_node
+        if can_have_side_effect(return_node, ctxt):
+            return ast.Subscript(name, ast.Index(idx))
+        return _make_ast_from_literal(return_node)
+
+    if isinstance(node, ast.Call):
+        if _resolve_name_or_attribute(node.func, ctxt) == range:
+            args = [_collapse_literal(arg, ctxt) for arg in node.args]
+            if all(isinstance(arg, ast.Num) for arg in args):
+                return [ast.Num(n) for n in range(*[arg.n for arg in args])]
+
+        return None
     elif isinstance(node, (ast.List, ast.Tuple)):
-        return [_resolve_name_or_attribute(e, ctxt) for e in node.elts]
+        return [_collapse_literal(e, ctxt) for e in node.elts]
+        #return [_resolve_name_or_attribute(e, ctxt) for e in node.elts]
     # Can't yet support sets and lists, since you need to compute what the unique values would be
     # elif isinstance(node, ast.Dict):
     #     return node.keys
     elif isinstance(node, (ast.Name, ast.Attribute, ast.NameConstant)):
         res = _resolve_name_or_attribute(node, ctxt)
-        import astor
         #print("Trying to resolve '{}' as list, got {}".format(astor.to_source(node), res))
         if isinstance(res, ast.AST) and not isinstance(res, (ast.Name, ast.Attribute, ast.NameConstant)):
             res = _constant_iterable(res, ctxt)
         if not isinstance(res, ast.AST):
             try:
-                iter(res)
-                return list(res)
+                if hasattr(res, 'items'):
+                    return dict([(k, wrap(_make_ast_from_literal(v), node, k)) for k, v in res.items()])
+                else:
+                    return [wrap(_make_ast_from_literal(res_node), node, i) for i, res_node in enumerate(res)]
             except TypeError:
                 pass
     return None
 
 
 def _resolve_name_or_attribute(node, ctxt_or_obj):
+    """If the given name of attribute is defined in the current context, return its value. Else, returns the node"""
     if isinstance(node, ast.Name):
         if isinstance(ctxt_or_obj, DictStack):
             if node.id in ctxt_or_obj:
@@ -115,19 +169,6 @@ def _resolve_name_or_attribute(node, ctxt_or_obj):
     else:
         return node
 
-
-# slice = Slice(expr? lower, expr? upper, expr? step)
-#       | ExtSlice(slice* dims)
-#       | Index(expr value)
-#
-# boolop = And | Or
-#
-# operator = Add | Sub | Mult | MatMult | Div | Mod | Pow | LShift
-#              | RShift | BitOr | BitXor | BitAnd | FloorDiv
-#
-# unaryop = Invert | Not | UAdd | USub
-#
-# cmpop = Eq | NotEq | Lt | LtE | Gt | GtE | Is | IsNot | In | NotIn
 
 _collapse_map = {
     ast.Add: lambda a, b: a + b,
@@ -163,6 +204,7 @@ _collapse_map = {
 
 
 def _make_ast_from_literal(lit):
+    """Converts literals into their AST equivalent"""
     if isinstance(lit, (list, tuple)):
         res = [_make_ast_from_literal(e) for e in lit]
         tp = ast.List if isinstance(lit, list) else ast.Tuple
@@ -178,6 +220,7 @@ def _make_ast_from_literal(lit):
 
 
 def __collapse_literal(node, ctxt):
+    """Collapses literal expressions. Returns literals if they're available, AST nodes otherwise"""
     if isinstance(node, (ast.Name, ast.Attribute, ast.NameConstant)):
         res = _resolve_name_or_attribute(node, ctxt)
         if isinstance(res, ast.AST) and not isinstance(res, (ast.Name, ast.Attribute, ast.NameConstant)):
@@ -189,16 +232,19 @@ def __collapse_literal(node, ctxt):
         return node.s
     elif isinstance(node, ast.Index):
         return __collapse_literal(node.value, ctxt)
+    elif isinstance(node, (ast.Slice, ast.ExtSlice)):
+        raise NotImplemented()
     elif isinstance(node, ast.Subscript):
-        print("SUBSCRIPT")
+        # print("Attempting to subscript {}".format(astor.to_source(node)))
         lst = _constant_iterable(node.value, ctxt)
-        print(lst)
+        # print("Can I subscript {}?".format(lst))
         if lst is None:
             return node
         slc = __collapse_literal(node.slice, ctxt)
-        print(slc)
+        # print("Getting subscript at {}".format(slc))
         if isinstance(slc, ast.AST):
             return node
+        # print("Value at {}[{}] = {}".format(lst, slc, lst[slc]))
         return lst[slc]
     elif isinstance(node, (ast.UnaryOp, ast.BinOp, ast.BoolOp)):
         if isinstance(node, ast.UnaryOp):
@@ -216,12 +262,12 @@ def __collapse_literal(node, ctxt):
                               " Error was:\n{}".format(traceback.format_exc()))
                 return node
         else:
-            if any(is_literal):
-                # Note that we know that it wasn't a unary op, else it would've succeded... so it was a binary op
+            if isinstance(node, ast.UnaryOp):
+                return ast.UnaryOp(operand=_make_ast_from_literal(operands[0]), op=node.op)
+            else:
                 return type(node)(left=_make_ast_from_literal(operands[0]),
                                   right=_make_ast_from_literal(operands[1]),
                                   op=node.op)
-            return node
     elif isinstance(node, ast.Compare):
         operands = [__collapse_literal(o, ctxt) for o in [node.left] + node.comparators]
         if all(not isinstance(opr, ast.AST) for opr in operands):
@@ -234,10 +280,16 @@ def __collapse_literal(node, ctxt):
 
 
 def _collapse_literal(node, ctxt):
+    """Collapse literal expressions in the given node. Returns the node with the collapsed literals"""
     return _make_ast_from_literal(__collapse_literal(node, ctxt))
 
 
 def _assign_names(node):
+    """Gets names from a assign-to tuple in flat form, just to know what's affected
+    "x=3" -> "x"
+    "a,b=4,5" -> ["a", "b"]
+    "(x,(y,z)),(a,) = something" -> ["x", "y", "z", "a"]
+    """
     if isinstance(node, ast.Name):
         yield node.id
     elif isinstance(node, ast.Tuple):
@@ -253,17 +305,19 @@ class TrackedContextTransformer(ast.NodeTransformer):
         super().__init__()
 
     def visit(self, node):
-        import astor
         orig_node = copy.deepcopy(node)
         new_node = super().visit(node)
 
         orig_node_code = astor.to_source(orig_node).strip()
-        if new_node is None:
-            print("Deleted >>> {} <<<".format(orig_node_code))
-        elif isinstance(new_node, ast.AST):
-            print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
-        elif isinstance(new_node, list):
-            print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
+        try:
+            if new_node is None:
+                print("Deleted >>> {} <<<".format(orig_node_code))
+            elif isinstance(new_node, ast.AST):
+                print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
+            elif isinstance(new_node, list):
+                print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
+        except AssertionError as ex:
+            raise AssertionError("Failed on {} >>> {}".format(orig_node_code, astor.dump_tree(new_node))) from ex
 
         return new_node
 
@@ -343,11 +397,10 @@ class CollapseTransformer(TrackedContextTransformer):
         return _collapse_literal(node, self.ctxt)
 
 
-def _make_function_transformer(transformer_type, name):
+def _make_function_transformer(transformer_type, name, description):
     @optional_argument_decorator
-    def transform(return_source=False, save_source=True, **kwargs):
-        """Unrolls constant loops in the decorated function
-
+    def transform(return_source=False, save_source=True, function_globals=None, **kwargs):
+        """
         :param return_source: Returns the unrolled function's source code instead of compiling it
         :param save_source: Saves the function source code to a tempfile to make it inspectable
         :param kwargs: Any other environmental variables to provide during unrolling
@@ -356,13 +409,21 @@ def _make_function_transformer(transformer_type, name):
 
         def inner(f):
             f_mod, f_body, f_file = _function_ast(f)
+            # Grab function globals
             glbls = f.__globals__
+            # Grab function closure variables
+            if isinstance(f.__closure__, tuple):
+                glbls.update({k: v.cell_contents for k, v in zip(f.__code__.co_freevars, f.__closure__)})
+            # Apply manual globals override
+            if function_globals is not None:
+                glbls.update(function_globals)
+            print({k: v for k, v in glbls.items() if k not in globals()})
             trans = transformer_type(DictStack(glbls, kwargs))
             f_mod.body[0].decorator_list = []
             f_mod = trans.visit(f_mod)
+            print(astor.dump_tree(f_mod))
             if return_source or save_source:
                 try:
-                    import astor
                     source = astor.to_source(f_mod)
                 except ImportError:
                     raise ImportError("miniutils.pragma.{name} requires 'astor' to be installed to obtain source code"
@@ -378,7 +439,6 @@ def _make_function_transformer(transformer_type, name):
                 if save_source:
                     temp = tempfile.NamedTemporaryFile('w', delete=True)
                     f_file = temp.name
-                #print(astor.dump_tree(f_mod))
                 exec(compile(f_mod, f_file, 'exec'), glbls)
                 func = glbls[f_mod.body[0].name]
                 if save_source:
@@ -387,12 +447,40 @@ def _make_function_transformer(transformer_type, name):
                     temp.flush()
                 return func
 
-        inner.__name__ = name
         return inner
+    transform.__name__ = name
+    transform.__doc__ = '\n'.join([description, transform.__doc__])
     return transform
 
 
-unroll = _make_function_transformer(UnrollTransformer, 'unroll')
+# Unroll literal loops
+unroll = _make_function_transformer(UnrollTransformer, 'unroll', "Unrolls constant loops in the decorated function")
 
 # Collapse defined literal values, and operations thereof, where possible
-collapse_literals = _make_function_transformer(CollapseTransformer, 'collapse_literals')
+collapse_literals = _make_function_transformer(CollapseTransformer, 'collapse_literals',
+                                               "Collapses literal expressions in the decorated function into single literals")
+
+# Directly reference elements of constant list, removing literal indexing into that list within a function
+def deindex(iterable, iterable_name, *args, **kwargs):
+    """
+    :param iterable: The list to deindex in the target function
+    :param iterable_name: The list's name (must be unique if deindexing multiple lists)
+    :param return_source: Returns the unrolled function's source code instead of compiling it
+    :param save_source: Saves the function source code to a tempfile to make it inspectable
+    :param kwargs: Any other environmental variables to provide during unrolling
+    :return: The unrolled function, or its source code if requested
+    """
+
+    if hasattr(iterable, 'items'):  # Support dicts and the like
+        internal_iterable = {k: '{}_{}'.format(iterable_name, k) for k, val in iterable.items()}
+        mapping = {internal_iterable[k]: val for k, val in iterable.items()}
+    else:  # Support lists, tuples, and the like
+        internal_iterable = {i: '{}_{}'.format(iterable_name, i) for i, val in enumerate(iterable)}
+        mapping = {internal_iterable[i]: val for i, val in enumerate(iterable)}
+
+    kwargs[iterable_name] = {k: ast.Name(id=name, ctx=ast.Load()) for k, name in internal_iterable.items()}
+
+    return collapse_literals(*args, function_globals=mapping, **kwargs)
+
+# Inline functions?
+

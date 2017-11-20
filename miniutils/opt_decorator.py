@@ -22,3 +22,16 @@ def optional_argument_decorator(_decorator):
             return decorator
 
     return inner_decorator_make
+
+
+# class PipedFunction:
+#     def __init__(self, f, *args, reversed_args=[]):
+#         self.f = f
+#         self.args = args
+#         self.reversed_args = reversed_args
+#
+#     def __ror__(self, other):
+#         return PipedFunction(f, self.args, self.reversed_args + [other])
+#
+#
+# def function_piping(func)

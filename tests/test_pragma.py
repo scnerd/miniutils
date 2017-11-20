@@ -1,6 +1,7 @@
 from unittest import TestCase
 from miniutils import pragma
 from textwrap import dedent
+import inspect
 
 
 class TestUnroll(TestCase):
@@ -69,11 +70,12 @@ class TestUnroll(TestCase):
             yield 5
             yield 5
             yield 5
-            for i in g.a:
-                yield i
-            yield g.b + 0
-            yield g.b + 1
-            yield g.b + 2
+            yield 1
+            yield 2
+            yield 3
+            yield 6
+            yield 7
+            yield 8
         ''')
         self.assertEqual(f.strip(), result.strip())
 
@@ -251,7 +253,6 @@ class TestCollapseLiterals(TestCase):
         self.assertEqual(f(5), deco_f(5))
         self.assertEqual(f(-1), deco_f(-1))
 
-        import inspect
         print(inspect.getsource(f))
         print(pragma.collapse_literals(return_source=True)(pragma.unroll(f)))
         deco_f = pragma.collapse_literals(pragma.unroll(f))
@@ -326,6 +327,124 @@ class TestCollapseLiterals(TestCase):
             print(4)
         ''')
         self.assertEqual(f.strip(), result.strip())
+
+    def test_with_objects(self):
+        @pragma.collapse_literals(return_source=True)
+        def f():
+            v = [object(), object()]
+            return v[0]
+
+        result = dedent('''
+        def f():
+            v = [object(), object()]
+            return v[0]
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+
+class TestDeindex(TestCase):
+    def test_with_literals(self):
+        v = [1, 2, 3]
+        @pragma.collapse_literals(return_source=True)
+        @pragma.deindex(v, 'v')
+        def f():
+            return v[0] + v[1] + v[2]
+
+        result = dedent('''
+        def f():
+            return 6
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_with_objects(self):
+        v = [object(), object(), object()]
+        @pragma.deindex(v, 'v', return_source=True)
+        def f():
+            return v[0] + v[1] + v[2]
+
+        result = dedent('''
+        def f():
+            return v_0 + v_1 + v_2
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_with_unroll(self):
+        v = [None, None, None]
+
+        @pragma.deindex(v, 'v', return_source=True)
+        @pragma.unroll(lv=len(v))
+        def f():
+            for i in range(lv):
+                yield v[i]
+
+        result = dedent('''
+        def f():
+            yield v_0
+            yield v_1
+            yield v_2
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_with_literals_run(self):
+        v = [1, 2, 3]
+        @pragma.collapse_literals
+        @pragma.deindex(v, 'v')
+        def f():
+            return v[0] + v[1] + v[2]
+
+        self.assertEqual(f(), sum(v))
+
+    def test_with_objects_run(self):
+        v = [object(), object(), object()]
+        @pragma.deindex(v, 'v')
+        def f():
+            return v[0]
+
+        self.assertEqual(f(), v[0])
+
+    def test_with_variable_indices(self):
+        v = [object(), object(), object()]
+        @pragma.deindex(v, 'v', return_source=True)
+        def f(x):
+            yield v[0]
+            yield v[x]
+
+        result = dedent('''
+        def f(x):
+            yield v_0
+            yield v[x]
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_dynamic_function_calls(self):
+        funcs = [lambda x: x, lambda x: x ** 2, lambda x: x ** 3]
+
+        # TODO: Support enumerate transparently
+        # TODO: Support tuple assignment in loop transparently
+
+        @pragma.deindex(funcs, 'funcs')
+        @pragma.unroll(lf=len(funcs))
+        def run_func(i, x):
+            for j in range(lf):
+                if i == j:
+                    return funcs[j](x)
+
+        print(inspect.getsource(run_func))
+
+        self.assertEqual(run_func(0, 5), 5)
+        self.assertEqual(run_func(1, 5), 25)
+        self.assertEqual(run_func(2, 5), 125)
+
+        result = dedent('''
+        def run_func(i, x):
+            if i == 0:
+                return funcs_0(x)
+            if i == 1:
+                return funcs_1(x)
+            if i == 2:
+                return funcs_2(x)
+        ''')
+        self.assertEqual(inspect.getsource(run_func).strip(), result.strip())
 
 
 class TestDictStack(TestCase):
