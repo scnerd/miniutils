@@ -87,9 +87,9 @@ def _function_ast(f):
 
 def can_have_side_effect(node, ctxt):
     if isinstance(node, ast.AST):
-        print("Can {} have side effects?".format(node))
+        # print("Can {} have side effects?".format(node))
         if isinstance(node, ast.Call):
-            print("  Yes!")
+            # print("  Yes!")
             return True
         else:
             for field, old_value in ast.iter_fields(node):
@@ -98,7 +98,7 @@ def can_have_side_effect(node, ctxt):
                 elif isinstance(old_value, ast.AST):
                     return can_have_side_effect(old_value, ctxt)
                 else:
-                    print("  No!")
+                    # print("  No!")
                     return False
     else:
         return False
@@ -304,22 +304,22 @@ class TrackedContextTransformer(ast.NodeTransformer):
         self.ctxt = ctxt or DictStack()
         super().__init__()
 
-    def visit(self, node):
-        orig_node = copy.deepcopy(node)
-        new_node = super().visit(node)
-
-        orig_node_code = astor.to_source(orig_node).strip()
-        try:
-            if new_node is None:
-                print("Deleted >>> {} <<<".format(orig_node_code))
-            elif isinstance(new_node, ast.AST):
-                print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
-            elif isinstance(new_node, list):
-                print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
-        except AssertionError as ex:
-            raise AssertionError("Failed on {} >>> {}".format(orig_node_code, astor.dump_tree(new_node))) from ex
-
-        return new_node
+    # def visit(self, node):
+    #     orig_node = copy.deepcopy(node)
+    #     new_node = super().visit(node)
+    #
+    #     orig_node_code = astor.to_source(orig_node).strip()
+    #     try:
+    #         if new_node is None:
+    #             print("Deleted >>> {} <<<".format(orig_node_code))
+    #         elif isinstance(new_node, ast.AST):
+    #             print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
+    #         elif isinstance(new_node, list):
+    #             print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
+    #     except AssertionError as ex:
+    #         raise AssertionError("Failed on {} >>> {}".format(orig_node_code, astor.dump_tree(new_node))) from ex
+    #
+    #     return new_node
 
     def visit_Assign(self, node):
         node.value = self.visit(node.value)
@@ -417,11 +417,11 @@ def _make_function_transformer(transformer_type, name, description):
             # Apply manual globals override
             if function_globals is not None:
                 glbls.update(function_globals)
-            print({k: v for k, v in glbls.items() if k not in globals()})
+            # print({k: v for k, v in glbls.items() if k not in globals()})
             trans = transformer_type(DictStack(glbls, kwargs))
             f_mod.body[0].decorator_list = []
             f_mod = trans.visit(f_mod)
-            print(astor.dump_tree(f_mod))
+            # print(astor.dump_tree(f_mod))
             if return_source or save_source:
                 try:
                     source = astor.to_source(f_mod)
