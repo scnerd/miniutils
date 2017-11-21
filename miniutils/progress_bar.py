@@ -37,17 +37,20 @@ def progbar(iterable, *a, verbose=True, **kw):
 
 
 def _fun(f, q_in, q_out, flatten, star):  # pragma: no cover
-    while True:
-        i, x = q_in.get()
-        if i is None:
-            break
-        out = f(*x) if star else f(x)
-        if flatten:
-            for j, o in enumerate(out):
-                q_out.put(((i, j), o))
-            q_out.put((None, None))
-        else:
-            q_out.put((i, out))
+    try:
+        while True:
+            i, x = q_in.get()
+            if i is None:
+                break
+            out = f(*x) if star else f(x)
+            if flatten:
+                for j, o in enumerate(out):
+                    q_out.put(((i, j), o))
+                q_out.put((None, None))
+            else:
+                q_out.put((i, out))
+    except BaseException as ex:
+        q_out.put((None, ex))
 
 
 def _parallel_progbar_launch(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
@@ -97,10 +100,16 @@ def _parallel_progbar_launch(mapper, iterable, nprocs=None, starmap=False, flatm
                 # When we're flagged that an input is done being returned in the queue, break the inner loop to make
                 # the "completed inputs" progress bar tick
                 if i is None:
-                    break
+                    if x is None:
+                        break
+                    else:
+                        raise x
                 yield i, x
     else:
-        yield from (q_out.get() for _ in progbar(num_sent, verbose=verbose, **kwargs))
+        for i, x in (q_out.get() for _ in progbar(num_sent, verbose=verbose, **kwargs)):
+            if i is None:
+                raise x
+            yield i, x
 
     # Clean up
     for p in procs:

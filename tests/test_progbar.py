@@ -97,3 +97,16 @@ class TestProgbar(TestCase):
         n = [(1, 5), (2, 0), (3, 4), (0, 100)]
         self.assertSequenceEqual(list(sorted(iparallel_progbar(mapper, n, starmap=True))),
                                  list(sorted([x ** p for x, p in n])))
+
+    def test_parallel_error(self):
+        def f(lst):
+            return parallel_progbar(lambda x: x ** 2, lst)
+
+        self.assertSequenceEqual(f([1, 2, 3]), [1, 4, 9])
+        self.assertRaises(TypeError, f, ['a', 'b', 'c'])
+
+        def f_flat(lst):
+            return parallel_progbar(range, lst, flatmap=True)
+
+        self.assertSequenceEqual(f_flat([1, 2, 3]), [0, 0, 1, 0, 1, 2])
+        self.assertRaises(TypeError, f_flat, ['a', 'b', 'c'])
