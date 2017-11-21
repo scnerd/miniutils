@@ -293,9 +293,8 @@ def _assign_names(node):
     if isinstance(node, ast.Name):
         yield node.id
     elif isinstance(node, ast.Tuple):
-        yield from [_assign_names(e) for e in node.elts]
-    else:
-        pass
+        for e in node.elts:
+            yield from _assign_names(e)
 
 
 # noinspection PyPep8Naming
@@ -336,8 +335,9 @@ class TrackedContextTransformer(ast.NodeTransformer):
                 #print("Setting {} = {}".format(var, val))
                 self.ctxt[var] = val
         else:
-            for assgn in _assign_names(node.targets):
-                self.ctxt[assgn] = None
+            for targ in node.targets:
+                for assgn in _assign_names(targ):
+                    self.ctxt[assgn] = None
         return node
 
 
@@ -425,7 +425,7 @@ def _make_function_transformer(transformer_type, name, description):
             if return_source or save_source:
                 try:
                     source = astor.to_source(f_mod)
-                except ImportError:
+                except ImportError:  # pragma: nocover
                     raise ImportError("miniutils.pragma.{name} requires 'astor' to be installed to obtain source code"
                                       .format(name=name))
             else:
