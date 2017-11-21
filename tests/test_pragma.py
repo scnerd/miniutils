@@ -230,6 +230,26 @@ class TestUnroll(TestCase):
         ''')
         self.assertEqual(f.strip(), result.strip())
 
+    def test_tuple_assign(self):
+        # This is still early code, so just make sure that it recognizes when a name is assigned to... we don't get values yet
+        # TODO: Implement tuple assignment
+        @pragma.unroll(return_source=True)
+        def f():
+            x = 3
+            ((y, x), z) = ((1, 2), 3)
+            for i in [x,x,x]:
+                print(i)
+
+        result = dedent('''
+        def f():
+            x = 3
+            (y, x), z = (1, 2), 3
+            print(x)
+            print(x)
+            print(x)
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
 
 class TestCollapseLiterals(TestCase):
     def test_full_run(self):
@@ -341,6 +361,15 @@ class TestCollapseLiterals(TestCase):
         ''')
         self.assertEqual(f.strip(), result.strip())
 
+    def test_invalid_collapse(self):
+        import warnings
+        warnings.resetwarnings()
+        with warnings.catch_warnings(record=True) as w:
+            @pragma.collapse_literals
+            def f():
+                return 1 + "2"
+
+            self.assertTrue(issubclass(w[-1].category, UserWarning))
 
 class TestDeindex(TestCase):
     def test_with_literals(self):
