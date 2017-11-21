@@ -1,5 +1,5 @@
 Nesting Python 2
-++++++++++++++++
+================
 
 In `very` rare situations, the standard means of Python2 compatibility within Python3 (such as ``six``, ``2to3``, or ``__futures__``) might simply be insufficient. Sometimes, you just need to run Python2 wholesale to get the correct behavior.
 

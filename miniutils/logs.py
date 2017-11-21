@@ -33,7 +33,6 @@ def enable_logging(log_level='NOTSET', *, logdir=None, use_colors=True, capture_
 
     plain_formatter = AddLaunchScript(fmt=format_str)
     if use_colors:
-        print("ENABLING COLOR!!!", file=sys.__stderr__)
         try:
             import coloredlogs
 
@@ -68,7 +67,6 @@ def enable_logging(log_level='NOTSET', *, logdir=None, use_colors=True, capture_
         except ImportError:
             color_formatter = plain_formatter
     else:
-        print("DISABLING COLOR!!!", file=sys.__stderr__)
         color_formatter = plain_formatter
 
     if logdir is not None:

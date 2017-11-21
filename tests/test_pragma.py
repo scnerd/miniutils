@@ -1,6 +1,7 @@
 from unittest import TestCase
 from miniutils import pragma
 from textwrap import dedent
+import inspect
 
 
 class TestUnroll(TestCase):
@@ -14,15 +15,15 @@ class TestUnroll(TestCase):
 
     def test_unroll_various(self):
         g = lambda: None
-        g.a = [1,2,3]
+        g.a = [1, 2, 3]
         g.b = 6
 
         @pragma.unroll(return_source=True)
         def f(x):
             y = 5
             a = range(3)
-            b = [1,2,4]
-            c = (1,2,5)
+            b = [1, 2, 4]
+            c = (1, 2, 5)
             d = reversed(a)
             e = [x, x, x]
             f = [y, y, y]
@@ -69,11 +70,12 @@ class TestUnroll(TestCase):
             yield 5
             yield 5
             yield 5
-            for i in g.a:
-                yield i
-            yield g.b + 0
-            yield g.b + 1
-            yield g.b + 2
+            yield 1
+            yield 2
+            yield 3
+            yield 6
+            yield 7
+            yield 8
         ''')
         self.assertEqual(f.strip(), result.strip())
 
@@ -194,6 +196,24 @@ class TestUnroll(TestCase):
         ''')
         self.assertEqual(f.strip(), result.strip())
 
+    def test_unroll_2list_source(self):
+        @pragma.unroll(return_source=True)
+        def f():
+            for i in [[1, 2, 3], [4, 5], [6]]:
+                for j in i:
+                    yield j
+
+        result = dedent('''
+        def f():
+            yield 1
+            yield 2
+            yield 3
+            yield 4
+            yield 5
+            yield 6
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
     def test_external_definition(self):
         # Known bug: this works when defined as a kwarg, but not as an external variable, but ONLY in unittests...
         # External variables work in practice
@@ -210,6 +230,221 @@ class TestUnroll(TestCase):
         ''')
         self.assertEqual(f.strip(), result.strip())
 
+
+class TestCollapseLiterals(TestCase):
+    def test_full_run(self):
+        def f(y):
+            x = 3
+            r = 1 + x
+            for z in range(2):
+                r *= 1 + 2 * 3
+                for abc in range(x):
+                    for a in range(abc):
+                        for b in range(y):
+                            r += 1 + 2 + y
+            return r
+
+        import inspect
+        print(inspect.getsource(f))
+        print(pragma.collapse_literals(return_source=True)(f))
+        deco_f = pragma.collapse_literals(f)
+        self.assertEqual(f(0), deco_f(0))
+        self.assertEqual(f(1), deco_f(1))
+        self.assertEqual(f(5), deco_f(5))
+        self.assertEqual(f(-1), deco_f(-1))
+
+        print(inspect.getsource(f))
+        print(pragma.collapse_literals(return_source=True)(pragma.unroll(f)))
+        deco_f = pragma.collapse_literals(pragma.unroll(f))
+        self.assertEqual(f(0), deco_f(0))
+        self.assertEqual(f(1), deco_f(1))
+        self.assertEqual(f(5), deco_f(5))
+        self.assertEqual(f(-1), deco_f(-1))
+
+    def test_basic(self):
+        @pragma.collapse_literals(return_source=True)
+        def f():
+            return 1 + 1
+
+        result = dedent('''
+        def f():
+            return 2
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_vars(self):
+        @pragma.collapse_literals(return_source=True)
+        def f():
+            x = 3
+            y = 2
+            return x + y
+
+        result = dedent('''
+        def f():
+            x = 3
+            y = 2
+            return 5
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_partial(self):
+        @pragma.collapse_literals(return_source=True)
+        def f(y):
+            x = 3
+            return x + 2 + y
+
+        result = dedent('''
+        def f(y):
+            x = 3
+            return 5 + y
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_constant_index(self):
+        @pragma.collapse_literals(return_source=True)
+        def f():
+            x = [1,2,3]
+            return x[0]
+
+        result = dedent('''
+        def f():
+            x = [1, 2, 3]
+            return 1
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_with_unroll(self):
+        @pragma.collapse_literals(return_source=True)
+        @pragma.unroll
+        def f():
+            for i in range(3):
+                print(i + 2)
+
+        result = dedent('''
+        def f():
+            print(2)
+            print(3)
+            print(4)
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_with_objects(self):
+        @pragma.collapse_literals(return_source=True)
+        def f():
+            v = [object(), object()]
+            return v[0]
+
+        result = dedent('''
+        def f():
+            v = [object(), object()]
+            return v[0]
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+
+class TestDeindex(TestCase):
+    def test_with_literals(self):
+        v = [1, 2, 3]
+        @pragma.collapse_literals(return_source=True)
+        @pragma.deindex(v, 'v')
+        def f():
+            return v[0] + v[1] + v[2]
+
+        result = dedent('''
+        def f():
+            return 6
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_with_objects(self):
+        v = [object(), object(), object()]
+        @pragma.deindex(v, 'v', return_source=True)
+        def f():
+            return v[0] + v[1] + v[2]
+
+        result = dedent('''
+        def f():
+            return v_0 + v_1 + v_2
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_with_unroll(self):
+        v = [None, None, None]
+
+        @pragma.deindex(v, 'v', return_source=True)
+        @pragma.unroll(lv=len(v))
+        def f():
+            for i in range(lv):
+                yield v[i]
+
+        result = dedent('''
+        def f():
+            yield v_0
+            yield v_1
+            yield v_2
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_with_literals_run(self):
+        v = [1, 2, 3]
+        @pragma.collapse_literals
+        @pragma.deindex(v, 'v')
+        def f():
+            return v[0] + v[1] + v[2]
+
+        self.assertEqual(f(), sum(v))
+
+    def test_with_objects_run(self):
+        v = [object(), object(), object()]
+        @pragma.deindex(v, 'v')
+        def f():
+            return v[0]
+
+        self.assertEqual(f(), v[0])
+
+    def test_with_variable_indices(self):
+        v = [object(), object(), object()]
+        @pragma.deindex(v, 'v', return_source=True)
+        def f(x):
+            yield v[0]
+            yield v[x]
+
+        result = dedent('''
+        def f(x):
+            yield v_0
+            yield v[x]
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_dynamic_function_calls(self):
+        funcs = [lambda x: x, lambda x: x ** 2, lambda x: x ** 3]
+
+        # TODO: Support enumerate transparently
+        # TODO: Support tuple assignment in loop transparently
+
+        @pragma.deindex(funcs, 'funcs')
+        @pragma.unroll(lf=len(funcs))
+        def run_func(i, x):
+            for j in range(lf):
+                if i == j:
+                    return funcs[j](x)
+
+        print(inspect.getsource(run_func))
+
+        self.assertEqual(run_func(0, 5), 5)
+        self.assertEqual(run_func(1, 5), 25)
+        self.assertEqual(run_func(2, 5), 125)
+
+        result = dedent('''
+        def run_func(i, x):
+            if i == 0:
+                return funcs_0(x)
+            if i == 1:
+                return funcs_1(x)
+            if i == 2:
+                return funcs_2(x)
+        ''')
+        self.assertEqual(inspect.getsource(run_func).strip(), result.strip())
 
 
 class TestDictStack(TestCase):

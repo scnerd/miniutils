@@ -1,5 +1,6 @@
 import itertools
 import multiprocessing as mp
+from nose.plugins.multiprocess import TimedOutException
 import random
 import warnings
 
@@ -105,7 +106,7 @@ def _parallel_progbar_launch(mapper, iterable, nprocs=None, starmap=False, flatm
     for p in procs:
         try:
             p.join(1)
-        except TimeoutError:
+        except (TimeoutError, mp.TimeoutError, TimedOutException):
             warnings.warn("parallel_progbar mapping process failed to close properly (check error output)")
 
 
