@@ -12,3 +12,4 @@ build
 htmlcov
 *.ipynb_checkpoints
 .coverage.*
+*.dat
