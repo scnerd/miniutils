@@ -77,7 +77,7 @@ class DictStack:
 
     def __contains__(self, item):
         try:
-            self[item]
+            _ = self[item]
             return True
         except KeyError:
             return False
@@ -216,10 +216,10 @@ def _resolve_name_or_attribute(node, ctxt):
     :rtype: *
     """
     if isinstance(node, ast.Name):
-        if isinstance(ctxt, DictStack):
+        if node.id in ctxt:
             return ctxt[node.id]
         else:
-            return getattr(ctxt, node.id, node)
+            return node
     elif isinstance(node, ast.NameConstant):
         return node.value
     elif isinstance(node, ast.Attribute):
@@ -339,29 +339,30 @@ def __collapse_literal(node, ctxt):
             return node
         else:
             return _collapse_map[node.op](operand)
-    elif isinstance(node, (ast.BinOp, ast.BoolOp)):
-        operands = [__collapse_literal(o, ctxt) for o in [node.left, node.right]]
+    elif isinstance(node, ast.BinOp):
+        left = __collapse_literal(node.left, ctxt)
+        right = __collapse_literal(node.right, ctxt)
         # print("({} {})".format(repr(node.op), ", ".join(repr(o) for o in operands)))
-        is_literal = [not isinstance(opr, ast.AST) for opr in operands]
-        if all(is_literal):
+        lliteral = not isinstance(left, ast.AST)
+        rliteral = not isinstance(right, ast.AST)
+        if lliteral and rliteral:
             try:
-                val = _collapse_map[type(node.op)](*operands)
+                val = _collapse_map[type(node.op)](left, right)
                 return val
             except:
                 warnings.warn(
                     "Literal collapse failed. Collapsing skipped, but executing this function will likely fail."
                     " Error was:\n{}".format(traceback.format_exc()))
                 return node
-        elif any(is_literal):
+        elif lliteral or rliteral:
             try:
-                if isinstance(node, ast.UnaryOp):
-                    return ast.UnaryOp(operand=_make_ast_from_literal(operands[0]), op=node.op)
-                else:
-                    return type(node)(left=_make_ast_from_literal(operands[0]),
-                                      right=_make_ast_from_literal(operands[1]),
-                                      op=node.op)
+                print((left, _make_ast_from_literal(left)))
+                print((right, _make_ast_from_literal(right)))
+                return ast.BinOp(left=_make_ast_from_literal(left),
+                                 right=_make_ast_from_literal(right),
+                                 op=node.op)
             except (AssertionError, ContractNotRespected):
-                warnings.warn("Unable to re-pack {tp} with {ops}".format(tp=type(node), ops=operands))
+                warnings.warn("Unable to re-pack {tp} with {l}, {r}".format(tp=type(node), l=left, r=right))
                 return node
     elif isinstance(node, ast.Compare):
         operands = [__collapse_literal(o, ctxt) for o in [node.left] + node.comparators]
@@ -414,22 +415,22 @@ class TrackedContextTransformer(ast.NodeTransformer):
         self.ctxt = ctxt or DictStack()
         super().__init__()
 
-    # def visit(self, node):
-    #     orig_node = copy.deepcopy(node)
-    #     new_node = super().visit(node)
-    #
-    #     orig_node_code = astor.to_source(orig_node).strip()
-    #     try:
-    #         if new_node is None:
-    #             print("Deleted >>> {} <<<".format(orig_node_code))
-    #         elif isinstance(new_node, ast.AST):
-    #             print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
-    #         elif isinstance(new_node, list):
-    #             print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
-    #     except AssertionError as ex:
-    #         raise AssertionError("Failed on {} >>> {}".format(orig_node_code, astor.dump_tree(new_node))) from ex
-    #
-    #     return new_node
+    def visit(self, node):
+        orig_node = copy.deepcopy(node)
+        new_node = super().visit(node)
+
+        orig_node_code = astor.to_source(orig_node).strip()
+        try:
+            if new_node is None:
+                print("Deleted >>> {} <<<".format(orig_node_code))
+            elif isinstance(new_node, ast.AST):
+                print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
+            elif isinstance(new_node, list):
+                print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
+        except AssertionError as ex:
+            raise AssertionError("Failed on {} >>> {}".format(orig_node_code, astor.dump_tree(new_node))) from ex
+
+        return new_node
 
     def visit_Assign(self, node):
         node.value = self.visit(node.value)
