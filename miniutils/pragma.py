@@ -10,11 +10,23 @@ import warnings
 
 from miniutils.opt_decorator import optional_argument_decorator
 
+try:
+    import numpy
+    num_types = (int, float, numpy.number)
+    float_types = (float, numpy.floating)
+except ImportError:  # pragma: nocover
+    num_types = (int, float)
+    float_types = (float,)
+
 # Astor tries to get fancy by failing nicely, but in doing so they fail when traversing non-AST type node properties.
 #  By deleting this custom handler, it'll fall back to the default ast visit pattern, which skips these missing
 # properties. Everything else seems to be implemented, so this will fail silently if it hits an AST node that isn't
 # supported but should be.
-del astor.node_util.ExplicitNodeVisitor.visit
+try:
+    del astor.node_util.ExplicitNodeVisitor.visit
+except AttributeError:
+    # visit isn't defined in this version of astor
+    pass
 
 
 class DictStack:
@@ -209,14 +221,22 @@ def _make_ast_from_literal(lit):
         res = [_make_ast_from_literal(e) for e in lit]
         tp = ast.List if isinstance(lit, list) else ast.Tuple
         return tp(elts=res)
-    elif isinstance(lit, (int, float)):
-        return ast.Num(lit)
+    elif isinstance(lit, num_types):
+        if isinstance(lit, float_types):
+            lit2 = float(lit)
+        else:
+            lit2 = int(lit)
+        if lit2 != lit:
+            raise AssertionError("({}){} != ({}){}".format(type(lit), lit, type(lit2), lit2))
+        return ast.Num(lit2)
     elif isinstance(lit, str):
         return ast.Str(lit)
     elif isinstance(lit, bool):
         return ast.NameConstant(lit)
-    else:
+    elif isinstance(lit, ast.AST):
         return lit
+    else:
+        raise AssertionError("'{}' of type {} is not able to be made into an AST node".format(lit, type(lit)))
 
 
 def __collapse_literal(node, ctxt):
@@ -325,13 +345,14 @@ class TrackedContextTransformer(ast.NodeTransformer):
         #print(node.value)
         # TODO: Support tuple assignments
         if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            nvalue = copy.deepcopy(node.value)
             var = node.targets[0].id
-            val = _constant_iterable(node.value, self.ctxt)
+            val = _constant_iterable(nvalue, self.ctxt)
             if val is not None:
                 #print("Setting {} = {}".format(var, val))
                 self.ctxt[var] = val
             else:
-                val = _collapse_literal(node.value, self.ctxt)
+                val = _collapse_literal(nvalue, self.ctxt)
                 #print("Setting {} = {}".format(var, val))
                 self.ctxt[var] = val
         else:
@@ -428,6 +449,8 @@ def _make_function_transformer(transformer_type, name, description):
                 except ImportError:  # pragma: nocover
                     raise ImportError("miniutils.pragma.{name} requires 'astor' to be installed to obtain source code"
                                       .format(name=name))
+                except AssertionError as ex:  # pragma: nocover
+                    raise RuntimeError(astor.dump_tree(f_mod)) from ex
             else:
                 source = None
 
