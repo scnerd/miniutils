@@ -29,6 +29,16 @@ Python 2
     .. automethod:: __init__
 
 
+Pragma
+======
+
+.. autofunction:: miniutils.pragma.unroll
+
+.. autofunction:: miniutils.pragma.collapse_literals
+
+.. autofunction:: miniutils.pragma.deindex
+
+
 Miscellaneous
 =============
 
