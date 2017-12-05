@@ -10,4 +10,5 @@ install:
 script: nosetests --with-coverage --nologcapture tests
 
 after_success:
-    coveralls
+ - coverage combine
+ - coveralls

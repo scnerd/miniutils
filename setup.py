@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='miniutils',
-    version='0.0.1a5',
+    version='0.0.1a6',
     packages=['miniutils'],
     url='http://miniutils.readthedocs.io/en/latest/',
     license='MIT',
