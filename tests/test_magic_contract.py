@@ -1,5 +1,8 @@
 from unittest import TestCase
 
+
+import contracts
+contracts.enable_all()
 import functools
 from miniutils.magic_contract import magic_contract
 from contracts.interface import ContractNotRespected
@@ -15,6 +18,7 @@ def fib(n):
     :return: The fibonnaci number
     :rtype: int,>=0
     """
+    assert n >= 0;
     if n == 0:
         return 0
     elif n == 1:
@@ -44,6 +48,10 @@ def sample_func(a):
 
 
 class TestMagicContract(TestCase):
+    def setUp(self):
+        import contracts
+        contracts.enable_all()
+
     def test_magic_contract_1(self):
         fib(3)
         fib(5)

@@ -4,7 +4,15 @@ from textwrap import dedent
 import inspect
 
 
-class TestUnroll(TestCase):
+class PragmaTest(TestCase):
+    def setUp(self):
+        pass
+        # # This is a quick hack to disable contracts for testing if needed
+        # import contracts
+        # contracts.enable_all()
+
+
+class TestUnroll(PragmaTest):
     def test_unroll_range(self):
         @pragma.unroll
         def f():
@@ -251,7 +259,7 @@ class TestUnroll(TestCase):
         self.assertEqual(f.strip(), result.strip())
 
 
-class TestCollapseLiterals(TestCase):
+class TestCollapseLiterals(PragmaTest):
     def test_full_run(self):
         def f(y):
             x = 3
@@ -265,16 +273,12 @@ class TestCollapseLiterals(TestCase):
             return r
 
         import inspect
-        print(inspect.getsource(f))
-        print(pragma.collapse_literals(return_source=True)(f))
         deco_f = pragma.collapse_literals(f)
         self.assertEqual(f(0), deco_f(0))
         self.assertEqual(f(1), deco_f(1))
         self.assertEqual(f(5), deco_f(5))
         self.assertEqual(f(-1), deco_f(-1))
 
-        print(inspect.getsource(f))
-        print(pragma.collapse_literals(return_source=True)(pragma.unroll(f)))
         deco_f = pragma.collapse_literals(pragma.unroll(f))
         self.assertEqual(f(0), deco_f(0))
         self.assertEqual(f(1), deco_f(1))
@@ -371,7 +375,70 @@ class TestCollapseLiterals(TestCase):
 
             self.assertTrue(issubclass(w[-1].category, UserWarning))
 
-class TestDeindex(TestCase):
+    # TODO: implement the features to get this test to work
+    # def test_conditional_erasure(self):
+    #     @pragma.collapse_literals(return_source=True)
+    #     def f(y):
+    #         x = 0
+    #         if y == x:
+    #             x = 1
+    #         return x
+    #
+    #     result = dedent('''
+    #     def f(y):
+    #         x = 0
+    #         if y == 0:
+    #             x = 1
+    #         return x
+    #     ''')
+    #     self.assertEqual(f.strip(), result.strip())
+
+    def test_constant_conditional_erasure(self):
+        @pragma.collapse_literals(return_source=True)
+        def f(y):
+            x = 0
+            if x <= 0:
+                x = 1
+            return x
+
+        result = dedent('''
+        def f(y):
+            x = 0
+            x = 1
+            return 1
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+        def fn():
+            if x == 0:
+                x = 'a'
+            elif x == 1:
+                x = 'b'
+            else:
+                x = 'c'
+            return x
+
+        result0 = dedent('''
+        def fn():
+            x = 'a'
+            return 'a'
+        ''')
+        result1 = dedent('''
+        def fn():
+            x = 'b'
+            return 'b'
+        ''')
+        result2 = dedent('''
+        def fn():
+            x = 'c'
+            return 'c'
+        ''')
+        self.assertEqual(pragma.collapse_literals(return_source=True, x=0)(fn).strip(), result0.strip())
+        self.assertEqual(pragma.collapse_literals(return_source=True, x=1)(fn).strip(), result1.strip())
+        self.assertEqual(pragma.collapse_literals(return_source=True, x=2)(fn).strip(), result2.strip())
+
+
+class TestDeindex(PragmaTest):
     def test_with_literals(self):
         v = [1, 2, 3]
         @pragma.collapse_literals(return_source=True)
@@ -395,7 +462,7 @@ class TestDeindex(TestCase):
         def f():
             return v_0 + v_1 + v_2
         ''')
-        self.assertEqual(f.strip(), result.strip())
+        self.assertEqual(result.strip(), f.strip())
 
     def test_with_unroll(self):
         v = [None, None, None]
@@ -458,8 +525,6 @@ class TestDeindex(TestCase):
                 if i == j:
                     return funcs[j](x)
 
-        print(inspect.getsource(run_func))
-
         self.assertEqual(run_func(0, 5), 5)
         self.assertEqual(run_func(1, 5), 25)
         self.assertEqual(run_func(2, 5), 125)
@@ -476,7 +541,7 @@ class TestDeindex(TestCase):
         self.assertEqual(inspect.getsource(run_func).strip(), result.strip())
 
 
-class TestDictStack(TestCase):
+class TestDictStack(PragmaTest):
     def test_most(self):
         stack = pragma.DictStack()
         stack.push({'x': 3})
