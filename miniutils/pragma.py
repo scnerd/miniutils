@@ -58,6 +58,7 @@ class DictStack:
         self.constants = [True] + [False] * len(base)
 
     def __setitem__(self, key, value):
+        print("SETTING {} = {}".format(key, value))
         self.dicts[-1][key] = value
 
     def __getitem__(self, item):
@@ -270,11 +271,13 @@ def _make_ast_from_literal(lit):
     """
     Converts literals into their AST equivalent
     :param lit: The literal to attempt to turn into an AST
-    :type lit: literal|AST
+    :type lit: *
     :return: The AST version of the literal, or the original AST node if one was given
-    :rtype: AST
+    :rtype: *
     """
-    if isinstance(lit, (list, tuple)):
+    if isinstance(lit, ast.AST):
+        return lit
+    elif isinstance(lit, (list, tuple)):
         res = [_make_ast_from_literal(e) for e in lit]
         tp = ast.List if isinstance(lit, list) else ast.Tuple
         return tp(elts=res)
@@ -290,11 +293,21 @@ def _make_ast_from_literal(lit):
         return ast.Str(lit)
     elif isinstance(lit, bool):
         return ast.NameConstant(lit)
-    # elif isinstance(lit, ast.AST):
-    #     return lit
-    # else:
-    #     raise AssertionError("'{}' of type {} is not able to be made into an AST node".format(lit, type(lit)))
-    return lit
+    else:
+        # warnings.warn("'{}' of type {} is not able to be made into an AST node".format(lit, type(lit)))
+        return lit
+
+
+@magic_contract
+def _is_wrappable(lit):
+    """
+    Checks if the given object either is or can be made into a known AST node
+    :param lit: The object to try to wrap
+    :type lit: *
+    :return: Whether or not this object can be wrapped as an AST node
+    :rtype: bool
+    """
+    return isinstance(_make_ast_from_literal(lit), ast.AST)
 
 
 @magic_contract
@@ -306,12 +319,22 @@ def __collapse_literal(node, ctxt):
     :param ctxt: The environment stack to use when running the check
     :type ctxt: DictStack
     :return: The given AST node with literal operations collapsed as much as possible
-    :rtype: literal|AST
+    :rtype: *
     """
+    try:
+        print("Trying to collapse {}".format(astor.to_source(node)))
+    except:
+        print("Trying to collapse (source not possible) {}".format(astor.dump_tree(node)))
+
     if isinstance(node, (ast.Name, ast.Attribute, ast.NameConstant)):
         res = _resolve_name_or_attribute(node, ctxt)
         if isinstance(res, ast.AST) and not isinstance(res, (ast.Name, ast.Attribute, ast.NameConstant)):
-            res = __collapse_literal(res, ctxt)
+            new_res = __collapse_literal(res, ctxt)
+            if _is_wrappable(new_res):
+                print("{} can be replaced by more specific literal {}".format(res, new_res))
+                res = new_res
+            else:
+                print("{} is an AST node, but can't safely be made more specific".format(res))
         return res
     elif isinstance(node, ast.Num):
         return node.n
@@ -322,19 +345,25 @@ def __collapse_literal(node, ctxt):
     elif isinstance(node, (ast.Slice, ast.ExtSlice)):
         raise NotImplemented()
     elif isinstance(node, ast.Subscript):
-        print("Attempting to subscript {}".format(astor.to_source(node)))
+        # print("Attempting to subscript {}".format(astor.to_source(node)))
         lst = _constant_iterable(node.value, ctxt)
-        print("Can I subscript {}?".format(lst))
+        # print("Can I subscript {}?".format(lst))
         if lst is None:
             return node
         slc = __collapse_literal(node.slice, ctxt)
-        print("Getting subscript at {}".format(slc))
+        # print("Getting subscript at {}".format(slc))
         if isinstance(slc, ast.AST):
             return node
-        print("Value at {}[{}] = {}".format(lst, slc, lst[slc]))
+        # print("Value at {}[{}] = {}".format(lst, slc, lst[slc]))
         val = lst[slc]
         if isinstance(val, ast.AST):
-            val = __collapse_literal(val, ctxt)
+            new_val = __collapse_literal(val, ctxt)
+            if _is_wrappable(new_val):
+                print("{} can be replaced by more specific literal {}".format(val, new_val))
+                val = new_val
+            else:
+                print("{} is an AST node, but can't safely be made more specific".format(val))
+        print("Final value at {}[{}] = {}".format(lst, slc, val))
         return val
     elif isinstance(node, ast.UnaryOp):
         operand = __collapse_literal(node.operand, ctxt)
@@ -354,6 +383,7 @@ def __collapse_literal(node, ctxt):
         lliteral = not isinstance(left, ast.AST)
         rliteral = not isinstance(right, ast.AST)
         if lliteral and rliteral:
+            print("Both operands {} and {} are literals, attempting to collapse".format(left, right))
             try:
                 return _collapse_map[type(node.op)](left, right)
             except:
@@ -361,18 +391,14 @@ def __collapse_literal(node, ctxt):
                     "Binary op collapse failed. Collapsing skipped, but executing this function will likely fail."
                     " Error was:\n{}".format(traceback.format_exc()))
                 return node
-        elif lliteral or rliteral:
-            try:
-                print(('left', left, _make_ast_from_literal(left)))
-                print(('right', right, _make_ast_from_literal(right)))
-                return ast.BinOp(left=_make_ast_from_literal(left),
-                                 right=_make_ast_from_literal(right),
-                                 op=node.op)
-            except (AssertionError, ContractNotRespected):
-                warnings.warn("Unable to re-pack {tp} with {l}, {r}".format(tp=type(node), l=left, r=right))
-                return node
         else:
-            return node
+            left = _make_ast_from_literal(left)
+            left = left if isinstance(left, ast.AST) else node.left
+
+            right = _make_ast_from_literal(right)
+            right = right if isinstance(right, ast.AST) else node.right
+            print("Attempting to combine {} and {} ({} op)".format(left, right, node.op))
+            return ast.BinOp(left=left, right=right, op=node.op)
     elif isinstance(node, ast.Compare):
         operands = [__collapse_literal(o, ctxt) for o in [node.left] + node.comparators]
         if all(not isinstance(opr, ast.AST) for opr in operands):
@@ -385,7 +411,7 @@ def __collapse_literal(node, ctxt):
 
 
 @magic_contract
-def _collapse_literal(node, ctxt):
+def _collapse_literal(node, ctxt, give_raw_result=False):
     """
     Collapse literal expressions in the given node. Returns the node with the collapsed literals
     :param node: The AST node to be checked
@@ -393,9 +419,12 @@ def _collapse_literal(node, ctxt):
     :param ctxt: The environment stack to use when running the check
     :type ctxt: DictStack
     :return: The given AST node with literal operations collapsed as much as possible
-    :rtype: AST
+    :rtype: *
     """
-    result = _make_ast_from_literal(__collapse_literal(node, ctxt))
+    result = __collapse_literal(node, ctxt)
+    if give_raw_result:
+        return result
+    result = _make_ast_from_literal(result)
     if not isinstance(result, ast.AST):
         return node
     return result
@@ -419,6 +448,8 @@ def _assign_names(node):
     elif isinstance(node, ast.Tuple):
         for e in node.elts:
             yield from _assign_names(e)
+    elif isinstance(node, ast.Subscript):
+        raise NotImplemented()
 
 
 # noinspection PyPep8Naming
@@ -431,16 +462,18 @@ class TrackedContextTransformer(ast.NodeTransformer):
         orig_node = copy.deepcopy(node)
         new_node = super().visit(node)
 
-        orig_node_code = astor.to_source(orig_node).strip()
         try:
+            orig_node_code = astor.to_source(orig_node).strip()
             if new_node is None:
                 print("Deleted >>> {} <<<".format(orig_node_code))
             elif isinstance(new_node, ast.AST):
                 print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
             elif isinstance(new_node, list):
                 print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
-        except AssertionError as ex:
-            raise AssertionError("Failed on {} >>> {}".format(orig_node_code, astor.dump_tree(new_node))) from ex
+        except Exception as ex:
+            raise AssertionError("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node))) from ex
+            # print("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node)))
+            # return orig_node
 
         return new_node
 
@@ -464,6 +497,11 @@ class TrackedContextTransformer(ast.NodeTransformer):
                 for assgn in _assign_names(targ):
                     self.ctxt[assgn] = None
         return node
+
+    def visit_AugAssign(self, node):
+        for assgn in _assign_names(node.target):
+            self.ctxt[assgn] = None
+        return super().generic_visit(node)
 
 
 # noinspection PyPep8Naming
@@ -506,6 +544,9 @@ class UnrollTransformer(TrackedContextTransformer):
 
 # noinspection PyPep8Naming
 class CollapseTransformer(TrackedContextTransformer):
+    def visit_Name(self, node):
+        return _collapse_literal(node, self.ctxt)
+
     def visit_BinOp(self, node):
         return _collapse_literal(node, self.ctxt)
 
@@ -520,6 +561,19 @@ class CollapseTransformer(TrackedContextTransformer):
 
     def visit_Subscript(self, node):
         return _collapse_literal(node, self.ctxt)
+
+    def visit_If(self, node):
+        cond = _collapse_literal(node.test, self.ctxt, True)
+        print("Attempting to collapse IF conditioned on {}".format(cond))
+        if not isinstance(cond, ast.AST):
+            print("Yes, this IF can be consolidated, condition is {}".format(bool(cond)))
+            if cond:
+                return [self.visit(b) for b in node.body]
+            else:
+                return [self.visit(b) for b in node.orelse]
+        else:
+            print("No, this IF cannot be consolidated")
+            return super().generic_visit(node)
 
 
 def _make_function_transformer(transformer_type, name, description):
@@ -624,3 +678,7 @@ def deindex(iterable, iterable_name, *args, **kwargs):
     return collapse_literals(*args, function_globals=mapping, **kwargs)
 
 # Inline functions?
+# You could do something like:
+# args, kwargs = (args_in), (kwargs_in)
+# function_body
+# result = return_expr

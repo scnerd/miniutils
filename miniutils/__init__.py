@@ -1,6 +1,3 @@
-import contracts
-contracts.disable_all()
-
 from .caching import CachedProperty
 from .magic_contract import magic_contract
 from .opt_decorator import optional_argument_decorator

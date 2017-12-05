@@ -1,4 +1,4 @@
-from contracts import contract, new_contract
+from contracts import *
 from contracts.library import Extension as _Ext
 from miniutils.opt_decorator import optional_argument_decorator
 
