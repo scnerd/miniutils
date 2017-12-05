@@ -14,7 +14,7 @@ from .stack import DictStack
 
 
 @magic_contract
-def _function_ast(f):
+def function_ast(f):
     """
     Returns ast for the given function. Gives a tuple of (ast_module, function_body, function_file
     :param f: The function to parse
@@ -123,7 +123,7 @@ def make_function_transformer(transformer_type, name, description, **transformer
 
         @magic_contract(f='function', returns='function|str')
         def inner(f):
-            f_mod, f_body, f_file = _function_ast(f)
+            f_mod, f_body, f_file = function_ast(f)
             # Grab function globals
             glbls = f.__globals__
             # Grab function closure variables

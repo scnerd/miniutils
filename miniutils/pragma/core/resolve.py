@@ -133,6 +133,15 @@ def constant_iterable(node, ctxt, avoid_side_effects=True):
 
 
 @magic_contract
+def constant_dict(node, ctxt):
+    if isinstance(node, (ast.Name, ast.NameConstant, ast.Attribute)):
+        res = resolve_name_or_attribute(node, ctxt)
+        if hasattr(res, 'items'):
+            return res
+    return None
+
+
+@magic_contract
 def resolve_name_or_attribute(node, ctxt):
     """
     If the given name of attribute is defined in the current context, return its value. Else, returns the node
