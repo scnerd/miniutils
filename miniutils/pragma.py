@@ -322,23 +322,31 @@ def __collapse_literal(node, ctxt):
     elif isinstance(node, (ast.Slice, ast.ExtSlice)):
         raise NotImplemented()
     elif isinstance(node, ast.Subscript):
-        # print("Attempting to subscript {}".format(astor.to_source(node)))
+        print("Attempting to subscript {}".format(astor.to_source(node)))
         lst = _constant_iterable(node.value, ctxt)
-        # print("Can I subscript {}?".format(lst))
+        print("Can I subscript {}?".format(lst))
         if lst is None:
             return node
         slc = __collapse_literal(node.slice, ctxt)
-        # print("Getting subscript at {}".format(slc))
+        print("Getting subscript at {}".format(slc))
         if isinstance(slc, ast.AST):
             return node
-        # print("Value at {}[{}] = {}".format(lst, slc, lst[slc]))
-        return lst[slc]
+        print("Value at {}[{}] = {}".format(lst, slc, lst[slc]))
+        val = lst[slc]
+        if isinstance(val, ast.AST):
+            val = __collapse_literal(val, ctxt)
+        return val
     elif isinstance(node, ast.UnaryOp):
         operand = __collapse_literal(node.operand, ctxt)
         if isinstance(operand, ast.AST):
             return node
         else:
-            return _collapse_map[node.op](operand)
+            try:
+                return _collapse_map[node.op](operand)
+            except:
+                warnings.warn(
+                    "Unary op collapse failed. Collapsing skipped, but executing this function will likely fail."
+                    " Error was:\n{}".format(traceback.format_exc()))
     elif isinstance(node, ast.BinOp):
         left = __collapse_literal(node.left, ctxt)
         right = __collapse_literal(node.right, ctxt)
@@ -347,23 +355,24 @@ def __collapse_literal(node, ctxt):
         rliteral = not isinstance(right, ast.AST)
         if lliteral and rliteral:
             try:
-                val = _collapse_map[type(node.op)](left, right)
-                return val
+                return _collapse_map[type(node.op)](left, right)
             except:
                 warnings.warn(
-                    "Literal collapse failed. Collapsing skipped, but executing this function will likely fail."
+                    "Binary op collapse failed. Collapsing skipped, but executing this function will likely fail."
                     " Error was:\n{}".format(traceback.format_exc()))
                 return node
         elif lliteral or rliteral:
             try:
-                print((left, _make_ast_from_literal(left)))
-                print((right, _make_ast_from_literal(right)))
+                print(('left', left, _make_ast_from_literal(left)))
+                print(('right', right, _make_ast_from_literal(right)))
                 return ast.BinOp(left=_make_ast_from_literal(left),
                                  right=_make_ast_from_literal(right),
                                  op=node.op)
             except (AssertionError, ContractNotRespected):
                 warnings.warn("Unable to re-pack {tp} with {l}, {r}".format(tp=type(node), l=left, r=right))
                 return node
+        else:
+            return node
     elif isinstance(node, ast.Compare):
         operands = [__collapse_literal(o, ctxt) for o in [node.left] + node.comparators]
         if all(not isinstance(opr, ast.AST) for opr in operands):
@@ -386,7 +395,10 @@ def _collapse_literal(node, ctxt):
     :return: The given AST node with literal operations collapsed as much as possible
     :rtype: AST
     """
-    return _make_ast_from_literal(__collapse_literal(node, ctxt))
+    result = _make_ast_from_literal(__collapse_literal(node, ctxt))
+    if not isinstance(result, ast.AST):
+        return node
+    return result
 
 
 @magic_contract
