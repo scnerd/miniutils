@@ -273,16 +273,12 @@ class TestCollapseLiterals(PragmaTest):
             return r
 
         import inspect
-        print(inspect.getsource(f))
-        print(pragma.collapse_literals(return_source=True)(f))
         deco_f = pragma.collapse_literals(f)
         self.assertEqual(f(0), deco_f(0))
         self.assertEqual(f(1), deco_f(1))
         self.assertEqual(f(5), deco_f(5))
         self.assertEqual(f(-1), deco_f(-1))
 
-        print(inspect.getsource(f))
-        print(pragma.collapse_literals(return_source=True)(pragma.unroll(f)))
         deco_f = pragma.collapse_literals(pragma.unroll(f))
         self.assertEqual(f(0), deco_f(0))
         self.assertEqual(f(1), deco_f(1))
@@ -413,6 +409,34 @@ class TestCollapseLiterals(PragmaTest):
         ''')
         self.assertEqual(f.strip(), result.strip())
 
+        def fn():
+            if x == 0:
+                x = 'a'
+            elif x == 1:
+                x = 'b'
+            else:
+                x = 'c'
+            return x
+
+        result0 = dedent('''
+        def fn():
+            x = 'a'
+            return 'a'
+        ''')
+        result1 = dedent('''
+        def fn():
+            x = 'b'
+            return 'b'
+        ''')
+        result2 = dedent('''
+        def fn():
+            x = 'c'
+            return 'c'
+        ''')
+        self.assertEqual(pragma.collapse_literals(return_source=True, x=0)(fn).strip(), result0.strip())
+        self.assertEqual(pragma.collapse_literals(return_source=True, x=1)(fn).strip(), result1.strip())
+        self.assertEqual(pragma.collapse_literals(return_source=True, x=2)(fn).strip(), result2.strip())
+
 
 class TestDeindex(PragmaTest):
     def test_with_literals(self):
@@ -500,8 +524,6 @@ class TestDeindex(PragmaTest):
             for j in range(lf):
                 if i == j:
                     return funcs[j](x)
-
-        print(inspect.getsource(run_func))
 
         self.assertEqual(run_func(0, 5), 5)
         self.assertEqual(run_func(1, 5), 25)

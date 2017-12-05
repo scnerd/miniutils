@@ -58,7 +58,7 @@ class DictStack:
         self.constants = [True] + [False] * len(base)
 
     def __setitem__(self, key, value):
-        print("SETTING {} = {}".format(key, value))
+        # print("SETTING {} = {}".format(key, value))
         self.dicts[-1][key] = value
 
     def __getitem__(self, item):
@@ -321,20 +321,20 @@ def __collapse_literal(node, ctxt):
     :return: The given AST node with literal operations collapsed as much as possible
     :rtype: *
     """
-    try:
-        print("Trying to collapse {}".format(astor.to_source(node)))
-    except:
-        print("Trying to collapse (source not possible) {}".format(astor.dump_tree(node)))
+    # try:
+    #     print("Trying to collapse {}".format(astor.to_source(node)))
+    # except:
+    #     print("Trying to collapse (source not possible) {}".format(astor.dump_tree(node)))
 
     if isinstance(node, (ast.Name, ast.Attribute, ast.NameConstant)):
         res = _resolve_name_or_attribute(node, ctxt)
         if isinstance(res, ast.AST) and not isinstance(res, (ast.Name, ast.Attribute, ast.NameConstant)):
             new_res = __collapse_literal(res, ctxt)
             if _is_wrappable(new_res):
-                print("{} can be replaced by more specific literal {}".format(res, new_res))
+                # print("{} can be replaced by more specific literal {}".format(res, new_res))
                 res = new_res
-            else:
-                print("{} is an AST node, but can't safely be made more specific".format(res))
+            # else:
+            #     print("{} is an AST node, but can't safely be made more specific".format(res))
         return res
     elif isinstance(node, ast.Num):
         return node.n
@@ -359,11 +359,11 @@ def __collapse_literal(node, ctxt):
         if isinstance(val, ast.AST):
             new_val = __collapse_literal(val, ctxt)
             if _is_wrappable(new_val):
-                print("{} can be replaced by more specific literal {}".format(val, new_val))
+                # print("{} can be replaced by more specific literal {}".format(val, new_val))
                 val = new_val
-            else:
-                print("{} is an AST node, but can't safely be made more specific".format(val))
-        print("Final value at {}[{}] = {}".format(lst, slc, val))
+        #     else:
+        #         print("{} is an AST node, but can't safely be made more specific".format(val))
+        # print("Final value at {}[{}] = {}".format(lst, slc, val))
         return val
     elif isinstance(node, ast.UnaryOp):
         operand = __collapse_literal(node.operand, ctxt)
@@ -383,7 +383,7 @@ def __collapse_literal(node, ctxt):
         lliteral = not isinstance(left, ast.AST)
         rliteral = not isinstance(right, ast.AST)
         if lliteral and rliteral:
-            print("Both operands {} and {} are literals, attempting to collapse".format(left, right))
+            # print("Both operands {} and {} are literals, attempting to collapse".format(left, right))
             try:
                 return _collapse_map[type(node.op)](left, right)
             except:
@@ -397,7 +397,7 @@ def __collapse_literal(node, ctxt):
 
             right = _make_ast_from_literal(right)
             right = right if isinstance(right, ast.AST) else node.right
-            print("Attempting to combine {} and {} ({} op)".format(left, right, node.op))
+            # print("Attempting to combine {} and {} ({} op)".format(left, right, node.op))
             return ast.BinOp(left=left, right=right, op=node.op)
     elif isinstance(node, ast.Compare):
         operands = [__collapse_literal(o, ctxt) for o in [node.left] + node.comparators]
@@ -458,24 +458,24 @@ class TrackedContextTransformer(ast.NodeTransformer):
         self.ctxt = ctxt or DictStack()
         super().__init__()
 
-    def visit(self, node):
-        orig_node = copy.deepcopy(node)
-        new_node = super().visit(node)
-
-        try:
-            orig_node_code = astor.to_source(orig_node).strip()
-            if new_node is None:
-                print("Deleted >>> {} <<<".format(orig_node_code))
-            elif isinstance(new_node, ast.AST):
-                print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
-            elif isinstance(new_node, list):
-                print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
-        except Exception as ex:
-            raise AssertionError("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node))) from ex
-            # print("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node)))
-            # return orig_node
-
-        return new_node
+    # def visit(self, node):
+    #     orig_node = copy.deepcopy(node)
+    #     new_node = super().visit(node)
+    #
+    #     try:
+    #         orig_node_code = astor.to_source(orig_node).strip()
+    #         if new_node is None:
+    #             print("Deleted >>> {} <<<".format(orig_node_code))
+    #         elif isinstance(new_node, ast.AST):
+    #             print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
+    #         elif isinstance(new_node, list):
+    #             print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
+    #     except Exception as ex:
+    #         raise AssertionError("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node))) from ex
+    #         # print("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node)))
+    #         # return orig_node
+    #
+    #     return new_node
 
     def visit_Assign(self, node):
         node.value = self.visit(node.value)
@@ -564,15 +564,22 @@ class CollapseTransformer(TrackedContextTransformer):
 
     def visit_If(self, node):
         cond = _collapse_literal(node.test, self.ctxt, True)
-        print("Attempting to collapse IF conditioned on {}".format(cond))
+        # print("Attempting to collapse IF conditioned on {}".format(cond))
         if not isinstance(cond, ast.AST):
-            print("Yes, this IF can be consolidated, condition is {}".format(bool(cond)))
-            if cond:
-                return [self.visit(b) for b in node.body]
-            else:
-                return [self.visit(b) for b in node.orelse]
+            # print("Yes, this IF can be consolidated, condition is {}".format(bool(cond)))
+            body = node.body if cond else node.orelse
+            result = []
+            for subnode in body:
+                res = self.visit(subnode)
+                if res is None:
+                    pass
+                elif isinstance(res, list):
+                    result += res
+                else:
+                    result.append(res)
+            return result
         else:
-            print("No, this IF cannot be consolidated")
+            # print("No, this IF cannot be consolidated")
             return super().generic_visit(node)
 
 
@@ -652,14 +659,15 @@ collapse_literals = _make_function_transformer(CollapseTransformer, 'collapse_li
 
 
 # Directly reference elements of constant list, removing literal indexing into that list within a function
+@magic_contract
 def deindex(iterable, iterable_name, *args, **kwargs):
     """
     :param iterable: The list to deindex in the target function
     :type iterable: iterable
     :param iterable_name: The list's name (must be unique if deindexing multiple lists)
     :type iterable_name: str
-    :param return_source: Returns the unrolled function's source code instead of compiling it
-    :param save_source: Saves the function source code to a tempfile to make it inspectable
+    :param args: Other command line arguments (see :func:`unroll` for documentation)
+    :type args: tuple
     :param kwargs: Any other environmental variables to provide during unrolling
     :type kwargs: dict
     :return: The unrolled function, or its source code if requested
