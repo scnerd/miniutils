@@ -541,6 +541,25 @@ class TestDeindex(PragmaTest):
         self.assertEqual(inspect.getsource(run_func).strip(), result.strip())
 
 
+class TestInline(PragmaTest):
+    def test_basic(self):
+        def g(x):
+            return x**2
+
+        @pragma.inline(g, return_source=True)
+        def f(y):
+            return g(y + 3)
+
+        result = dedent('''
+        def f(y):
+            g = {}
+            g['x'] = y + 3
+            g['return'] = g['x'] ** 2
+            return g['return']
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+
 class TestDictStack(PragmaTest):
     def test_most(self):
         stack = pragma.DictStack()

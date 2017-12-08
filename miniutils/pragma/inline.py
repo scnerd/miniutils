@@ -1,8 +1,8 @@
 import ast
 import inspect
 
-from .collapse_literals import collapse_literals
-from .core import TrackedContextTransformer, function_ast, constant_dict, make_function_transformer
+from .core import TrackedContextTransformer, function_ast, constant_dict, make_function_transformer, \
+    resolve_name_or_attribute, resolve_literal
 from .. import magic_contract
 from collections import OrderedDict as odict
 
@@ -51,22 +51,21 @@ from collections import OrderedDict as odict
 
 
 class _InlineBodyTransformer(ast.NodeTransformer):
-    def __init__(self, func_name, param_names, fmt):
+    def __init__(self, func_name, param_names):
         self.func_name = func_name
         self.param_names = param_names
-        self.fmt = fmt
 
     def visit_Name(self, node):
         if node.id in self.param_names:
-            return ast.Subscript(value=ast.Name(self.func_name),
+            return ast.Subscript(value=ast.Name(id=self.func_name),
                                  slice=ast.Index(ast.Name(node.id)),
                                  expr_context=getattr(node, 'expr_context', ast.Load()))
 
     def visit_Return(self, node):
         result = []
         if node.value:
-            result.append(ast.Assign(targets=[ast.Subscript(value=ast.name(self.func_name),
-                                                            slice=ast.Name('return'),
+            result.append(ast.Assign(targets=[ast.Subscript(value=ast.Name(id=self.func_name),
+                                                            slice=ast.Name(id='return'),
                                                             expr_context=ast.Store())],
                                      value=node.value))
         result.append(ast.Break())
@@ -74,12 +73,11 @@ class _InlineBodyTransformer(ast.NodeTransformer):
 
 
 class InlineTransformer(TrackedContextTransformer):
-    def __init__(self, *args, fun_to_inline=None, fmt=None, **kwargs):
-        assert fun_to_inline is not None
-        assert fmt is not None
+    def __init__(self, *args, funs=None, **kwargs):
+        assert funs is not None
         super().__init__(*args, **kwargs)
 
-        self.fun, self.signature, self.fun_body = fun_to_inline
+        self.funs = funs
         self.code_blocks = []
 
 
@@ -87,6 +85,7 @@ class InlineTransformer(TrackedContextTransformer):
         """When we visit a block of statements, create a new "code block" and push statements into it"""
         lst = []
         self.code_blocks.append(lst)
+        print(nodes)
         for n in nodes:
             res = self.visit(n)
             if res is None:
@@ -101,30 +100,50 @@ class InlineTransformer(TrackedContextTransformer):
     def visit_Call(self, node):
         """When we see a function call, insert the function body into the current code block, then replace the call
         with the return expression """
-        cur_block = self.code_blocks[-1]
+        node_fun = resolve_name_or_attribute(resolve_literal(node.func, self.ctxt), self.ctxt)
 
-        # Load arguments into their appropriate variables
-        args = node.args
-        keywords = [(name.id, value) for name, value in node.keywords if name is not None]
-        kw_dict = [value for name, value in node.keywords if name is None]
-        kw_dict = constant_dict(kw_dict) or {}
-        keywords += list(kw_dict.items())
-        bound_args = self.signature.bind(*node.args, **odict(keywords))
-        self.signature.apply_defaults()
+        for (fun, fname, fsig, fbody) in self.funs:
+            if fun != node_fun:
+                continue
 
-        # Create args dictionary
-        # fun_name = {}
-        cur_block.append(ast.Assign(targets=[ast.Name(self.fun)], value=ast.Dict(keys=[], values=[])))
+            cur_block = self.code_blocks[-1]
 
-        for name, value in bound_args.arguments.items():
-            # fun_name['param_name'] = param_value
-            cur_block.append(ast.Assign(targets=[ast.Subscript(value=ast.Name(self.fun), slice=ast.Str(name))], value=value))
+            # Load arguments into their appropriate variables
+            args = node.args
+            keywords = [(name.id, value) for name, value in node.keywords if name is not None]
+            kw_dict = [value for name, value in node.keywords if name is None]
+            kw_dict = constant_dict(kw_dict, self.ctxt) or {}
+            keywords += list(kw_dict.items())
+            bound_args = fsig.bind(*node.args, **odict(keywords))
+            bound_args.apply_defaults()
 
-        # Inline function code
-        cur_block += self.fun_body
+            # Create args dictionary
+            # fun_name = {}
+            cur_block.append(ast.Assign(targets=[ast.Name(id=fname)],
+                                        value=ast.Dict(keys=[], values=[])))
 
-        # fun_name['return']
-        return ast.Subscript(value=ast.Name(self.fun), slice=ast.Str('return'), expr_context=ast.Load())
+            for arg_name, arg_value in bound_args.arguments.items():
+                # fun_name['param_name'] = param_value
+                cur_block.append(ast.Assign(targets=[ast.Subscript(value=ast.Name(id=fname),
+                                                                   slice=ast.Str(arg_name),
+                                                                   expr_context=ast.Store())],
+                                            value=arg_value))
+
+            # Inline function code
+            cur_block.append(ast.For(target=ast.Name(id='____'),
+                                     iter=ast.Call(func=ast.Name(id='range'),
+                                                   args=[ast.Num(1)],
+                                                   keywords=[]),
+                                     body=fbody,
+                                     orelse=[]))
+
+            # fun_name['return']
+            return ast.Subscript(value=ast.Name(id=fname),
+                                 slice=ast.Str('return'),
+                                 expr_context=ast.Load())
+
+        else:
+            return node
 
 
 
@@ -193,27 +212,30 @@ class InlineTransformer(TrackedContextTransformer):
 # function_body
 # result = return_expr
 @magic_contract
-def inline(fun_to_inline):
+def inline(*funs_to_inline, **kwargs):
     """
-    :param fun_to_inline: The inner called function that should be inlined in the wrapped function
-    :type fun_to_inline: function
-    :param args: Other command line arguments (see :func:`collapse_literals` for documentation)
-    :type args: tuple
-    :param kwargs: Any other environmental variables to provide during unrolling
-    :type kwargs: dict
+    :param funs_to_inline: The inner called function that should be inlined in the wrapped function
+    :type funs_to_inline: tuple(function)
     :return: The unrolled function, or its source code if requested
     :rtype: function
     """
-    fname = fun_to_inline.__name__
-    fsig = inspect.signature(fun_to_inline)
-    _, fbody, _ = function_ast(fun_to_inline)
+    funs = []
+    for fun_to_inline in funs_to_inline:
+        fname = fun_to_inline.__name__
+        fsig = inspect.signature(fun_to_inline)
+        _, fbody, _ = function_ast(fun_to_inline)
 
-    new_name = '_{fname}_{name}'
+        new_name = '_{fname}_{name}'
 
-    name_transformer = _InlineBodyTransformer(fname, new_name)
-    fbody = [name_transformer.visit(stmt) for stmt in fbody]
+        import astor
+        print(astor.dump_tree(fbody))
+        name_transformer = _InlineBodyTransformer(fname, new_name)
+        fbody = [name_transformer.visit(stmt) for stmt in fbody]
+        fbody = [stmt for visited in fbody for stmt in (visited if isinstance(visited, list) else [visited])]
+        print(astor.dump_tree(fbody))
+        funs.append((fun_to_inline, fname, fsig, fbody))
 
     return make_function_transformer(InlineTransformer,
                                      'inline',
                                      'Inline the specified function within the decorated function',
-                                     fun_to_inline=(fname, fsig, fbody))
+                                     funs=funs)(**kwargs)

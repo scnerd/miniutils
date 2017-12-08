@@ -9,7 +9,7 @@ import astor
 
 from miniutils.magic_contract import magic_contract
 from miniutils.opt_decorator import optional_argument_decorator
-from .resolve import collapse_literal, constant_iterable
+from .resolve import resolve_literal, constant_iterable
 from .stack import DictStack
 
 
@@ -40,7 +40,7 @@ def _assign_names(node):
     "(x,(y,z)),(a,) = something" -> ["x", "y", "z", "a"]
 
     :param node: The AST node to resolve to a list of names
-    :type node: Name|Tuple
+    :type node: AST
     :return: The flattened list of names referenced in this node
     :rtype: iterable
     """
@@ -50,7 +50,7 @@ def _assign_names(node):
         for e in node.elts:
             yield from _assign_names(e)
     elif isinstance(node, ast.Subscript):
-        raise NotImplemented()
+        yield from _assign_names(node.value)
 
 
 class TrackedContextTransformer(ast.NodeTransformer):
@@ -89,7 +89,7 @@ class TrackedContextTransformer(ast.NodeTransformer):
                 # print("Setting {} = {}".format(var, val))
                 self.ctxt[var] = val
             else:
-                val = collapse_literal(nvalue, self.ctxt)
+                val = resolve_literal(nvalue, self.ctxt)
                 # print("Setting {} = {}".format(var, val))
                 self.ctxt[var] = val
         else:

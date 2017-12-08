@@ -105,13 +105,13 @@ def constant_iterable(node, ctxt, avoid_side_effects=True):
 
     if isinstance(node, ast.Call):
         if resolve_name_or_attribute(node.func, ctxt) == range:
-            args = [collapse_literal(arg, ctxt) for arg in node.args]
+            args = [resolve_literal(arg, ctxt) for arg in node.args]
             if all(isinstance(arg, ast.Num) for arg in args):
                 return [ast.Num(n) for n in range(*[arg.n for arg in args])]
 
         return None
     elif isinstance(node, (ast.List, ast.Tuple)):
-        return [collapse_literal(e, ctxt) for e in node.elts]
+        return [resolve_literal(e, ctxt) for e in node.elts]
         # return [_resolve_name_or_attribute(e, ctxt) for e in node.elts]
     # Can't yet support sets and lists, since you need to compute what the unique values would be
     # elif isinstance(node, ast.Dict):
@@ -132,7 +132,7 @@ def constant_iterable(node, ctxt, avoid_side_effects=True):
     return None
 
 
-@magic_contract
+# @magic_contract
 def constant_dict(node, ctxt):
     if isinstance(node, (ast.Name, ast.NameConstant, ast.Attribute)):
         res = resolve_name_or_attribute(node, ctxt)
@@ -214,7 +214,7 @@ def is_wrappable(lit):
 
 
 @magic_contract
-def _collapse_literal(node, ctxt):
+def _resolve_literal(node, ctxt):
     """
     Collapses literal expressions. Returns literals if they're available, AST nodes otherwise
     :param node: The AST node to be checked
@@ -232,7 +232,7 @@ def _collapse_literal(node, ctxt):
     if isinstance(node, (ast.Name, ast.Attribute, ast.NameConstant)):
         res = resolve_name_or_attribute(node, ctxt)
         if isinstance(res, ast.AST) and not isinstance(res, (ast.Name, ast.Attribute, ast.NameConstant)):
-            new_res = _collapse_literal(res, ctxt)
+            new_res = _resolve_literal(res, ctxt)
             if is_wrappable(new_res):
                 # print("{} can be replaced by more specific literal {}".format(res, new_res))
                 res = new_res
@@ -244,7 +244,7 @@ def _collapse_literal(node, ctxt):
     elif isinstance(node, ast.Str):
         return node.s
     elif isinstance(node, ast.Index):
-        return _collapse_literal(node.value, ctxt)
+        return _resolve_literal(node.value, ctxt)
     elif isinstance(node, (ast.Slice, ast.ExtSlice)):
         raise NotImplemented()
     elif isinstance(node, ast.Subscript):
@@ -253,14 +253,14 @@ def _collapse_literal(node, ctxt):
         # print("Can I subscript {}?".format(lst))
         if lst is None:
             return node
-        slc = _collapse_literal(node.slice, ctxt)
+        slc = _resolve_literal(node.slice, ctxt)
         # print("Getting subscript at {}".format(slc))
         if isinstance(slc, ast.AST):
             return node
         # print("Value at {}[{}] = {}".format(lst, slc, lst[slc]))
         val = lst[slc]
         if isinstance(val, ast.AST):
-            new_val = _collapse_literal(val, ctxt)
+            new_val = _resolve_literal(val, ctxt)
             if is_wrappable(new_val):
                 # print("{} can be replaced by more specific literal {}".format(val, new_val))
                 val = new_val
@@ -269,7 +269,7 @@ def _collapse_literal(node, ctxt):
         # print("Final value at {}[{}] = {}".format(lst, slc, val))
         return val
     elif isinstance(node, ast.UnaryOp):
-        operand = _collapse_literal(node.operand, ctxt)
+        operand = _resolve_literal(node.operand, ctxt)
         if isinstance(operand, ast.AST):
             return node
         else:
@@ -280,8 +280,8 @@ def _collapse_literal(node, ctxt):
                     "Unary op collapse failed. Collapsing skipped, but executing this function will likely fail."
                     " Error was:\n{}".format(traceback.format_exc()))
     elif isinstance(node, ast.BinOp):
-        left = _collapse_literal(node.left, ctxt)
-        right = _collapse_literal(node.right, ctxt)
+        left = _resolve_literal(node.left, ctxt)
+        right = _resolve_literal(node.right, ctxt)
         # print("({} {})".format(repr(node.op), ", ".join(repr(o) for o in operands)))
         lliteral = not isinstance(left, ast.AST)
         rliteral = not isinstance(right, ast.AST)
@@ -303,7 +303,7 @@ def _collapse_literal(node, ctxt):
             # print("Attempting to combine {} and {} ({} op)".format(left, right, node.op))
             return ast.BinOp(left=left, right=right, op=node.op)
     elif isinstance(node, ast.Compare):
-        operands = [_collapse_literal(o, ctxt) for o in [node.left] + node.comparators]
+        operands = [_resolve_literal(o, ctxt) for o in [node.left] + node.comparators]
         if all(not isinstance(opr, ast.AST) for opr in operands):
             return all(_collapse_map[type(cmp_func)](operands[i - 1], operands[i])
                        for i, cmp_func in zip(range(1, len(operands)), node.ops))
@@ -314,7 +314,7 @@ def _collapse_literal(node, ctxt):
 
 
 @magic_contract
-def collapse_literal(node, ctxt, give_raw_result=False):
+def resolve_literal(node, ctxt, give_raw_result=False):
     """
     Collapse literal expressions in the given node. Returns the node with the collapsed literals
     :param node: The AST node to be checked
@@ -324,7 +324,7 @@ def collapse_literal(node, ctxt, give_raw_result=False):
     :return: The given AST node with literal operations collapsed as much as possible
     :rtype: *
     """
-    result = _collapse_literal(node, ctxt)
+    result = _resolve_literal(node, ctxt)
     if give_raw_result:
         return result
     result = make_ast_from_literal(result)
