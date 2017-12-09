@@ -137,7 +137,7 @@ def constant_dict(node, ctxt):
     if isinstance(node, (ast.Name, ast.NameConstant, ast.Attribute)):
         res = resolve_name_or_attribute(node, ctxt)
         if hasattr(res, 'items'):
-            return res
+            return dict(res.items())
     return None
 
 

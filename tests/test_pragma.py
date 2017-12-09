@@ -554,7 +554,9 @@ class TestInline(PragmaTest):
         def f(y):
             g = {}
             g['x'] = y + 3
-            g['return'] = g['x'] ** 2
+            for ____ in [None]:
+                g['return'] = g['x'] ** 2
+                break
             return g['return']
         ''')
         self.assertEqual(f.strip(), result.strip())
