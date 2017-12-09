@@ -186,7 +186,6 @@ def make_function_transformer(transformer_type, name, description, **transformer
             if return_source:
                 return source
             else:
-                # func_source = astor.to_source(f_mod)
                 f_mod = ast.fix_missing_locations(f_mod)
                 if save_source:
                     temp = tempfile.NamedTemporaryFile('w', delete=True)

@@ -258,6 +258,36 @@ class TestUnroll(PragmaTest):
         ''')
         self.assertEqual(f.strip(), result.strip())
 
+    def test_top_break(self):
+        @pragma.unroll(return_source=True)
+        def f():
+            for i in range(10):
+                print(i)
+                break
+
+        result = dedent('''
+        def f():
+            print(0)
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_inner_break(self):
+        @pragma.unroll(return_source=True)
+        def f(y):
+            for i in range(10):
+                print(i)
+                if i == y:
+                    break
+
+        result = dedent('''
+        def f(y):
+            for i in range(10):
+                print(i)
+                if i == y:
+                    break
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
 
 class TestCollapseLiterals(PragmaTest):
     def test_full_run(self):
@@ -272,7 +302,6 @@ class TestCollapseLiterals(PragmaTest):
                             r += 1 + 2 + y
             return r
 
-        import inspect
         deco_f = pragma.collapse_literals(f)
         self.assertEqual(f(0), deco_f(0))
         self.assertEqual(f(1), deco_f(1))
@@ -552,12 +581,40 @@ class TestInline(PragmaTest):
 
         result = dedent('''
         def f(y):
-            g = {}
-            g['x'] = y + 3
+            _g = {}
+            _g['x'] = y + 3
             for ____ in [None]:
-                g['return'] = g['x'] ** 2
+                _g = _g['x'] ** 2
                 break
-            return g['return']
+            return _g
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_basic_run(self):
+        def g(x):
+            return x**2
+
+        @pragma.inline(g)
+        def f(y):
+            return g(y + 3)
+
+        self.assertEqual(f(1), ((1 + 3) ** 2))
+
+    def test_basic_unroll(self):
+        def g(x):
+            return x**2
+
+        @pragma.unroll(return_source=True)
+        @pragma.inline(g)
+        def f(y):
+            return g(y + 3)
+
+        result = dedent('''
+        def f(y):
+            _g = {}
+            _g['x'] = y + 3
+            _g = _g['x'] ** 2
+            return _g
         ''')
         self.assertEqual(f.strip(), result.strip())
 

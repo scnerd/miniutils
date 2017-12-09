@@ -46,11 +46,12 @@ from collections import OrderedDict as odict
 #           attributes (int lineno, int col_offset)
 
 
-class _InlineBodyTransformer(DebugTransformerMixin, TrackedContextTransformer):
+class _InlineBodyTransformer(TrackedContextTransformer):
     def __init__(self, func_name, param_names):
         self.func_name = func_name
         print("Func {} takes parameters {}".format(func_name, param_names))
         self.param_names = param_names
+        self.in_break_block = False
         super().__init__()
 
     def visit_Name(self, node):
@@ -59,25 +60,39 @@ class _InlineBodyTransformer(DebugTransformerMixin, TrackedContextTransformer):
             print("Found parameter reference {}".format(node.id))
             if node.id not in self.ctxt:
                 # If so, get its value from the argument dictionary
-                return ast.Subscript(value=ast.Name(id=self.func_name),
+                return ast.Subscript(value=ast.Name(id='_'+self.func_name, ctx=ast.Load()),
                                      slice=ast.Index(ast.Str(node.id)),
-                                     expr_context=getattr(node, 'expr_context', ast.Load()))
+                                     ctx=getattr(node, 'expr_context', ast.Load()))
             else:
                 print("But it's been overwritten to {} = {}".format(node.id, self.ctxt[node.id]))
         return node
 
     def visit_Return(self, node):
+        if self.in_break_block:
+            raise NotImplementedError("miniutils.pragma.inline cannot handle returns from within a loop")
         result = []
         if node.value:
-            result.append(ast.Assign(targets=[ast.Subscript(value=ast.Name(id=self.func_name),
-                                                            slice=ast.Str('return'),
-                                                            expr_context=ast.Store())],
+            result.append(ast.Assign(targets=[ast.Name(id='_'+self.func_name, ctx=ast.Store())],
                                      value=self.visit(node.value)))
         result.append(ast.Break())
         return result
 
+    def visit_For(self, node):
+        orig_in_break_block = self.in_break_block
+        self.in_break_block = True
+        res = self.generic_visit(node)
+        self.in_break_block = orig_in_break_block
+        return res
 
-class InlineTransformer(DebugTransformerMixin, TrackedContextTransformer):
+    def visit_While(self, node):
+        orig_in_break_block = self.in_break_block
+        self.in_break_block = True
+        res = self.generic_visit(node)
+        self.in_break_block = orig_in_break_block
+        return res
+
+
+class InlineTransformer(TrackedContextTransformer):
     def __init__(self, *args, funs=None, **kwargs):
         assert funs is not None
         super().__init__(*args, **kwargs)
@@ -117,34 +132,39 @@ class InlineTransformer(DebugTransformerMixin, TrackedContextTransformer):
             args = node.args
             keywords = [(name.id, value) for name, value in node.keywords if name is not None]
             kw_dict = [value for name, value in node.keywords if name is None]
-            kw_dict = constant_dict(kw_dict, self.ctxt) or {}
-            keywords += list(kw_dict.items())
+            kw_dict = kw_dict[0] if kw_dict else None
             bound_args = fsig.bind(*node.args, **odict(keywords))
             bound_args.apply_defaults()
 
             # Create args dictionary
             # fun_name = {}
-            cur_block.append(ast.Assign(targets=[ast.Name(id=fname)],
+            cur_block.append(ast.Assign(targets=[ast.Name(id='_'+fname, ctx=ast.Store())],
                                         value=ast.Dict(keys=[], values=[])))
 
             for arg_name, arg_value in bound_args.arguments.items():
                 # fun_name['param_name'] = param_value
-                cur_block.append(ast.Assign(targets=[ast.Subscript(value=ast.Name(id=fname),
-                                                                   slice=ast.Str(arg_name),
-                                                                   expr_context=ast.Store())],
+                cur_block.append(ast.Assign(targets=[ast.Subscript(value=ast.Name(id='_'+fname, ctx=ast.Load()),
+                                                                   slice=ast.Index(ast.Str(arg_name)),
+                                                                   ctx=ast.Store())],
                                             value=arg_value))
+
+            if kw_dict:
+                # fun_name.update(kwargs)
+                cur_block.append(ast.Call(func=ast.Attribute(value=ast.Name(id='_'+fname, ctx=ast.Load()),
+                                                             attr='update',
+                                                             ctx=ast.Load()),
+                                          args=[kw_dict],
+                                          keywords=[]))
 
             # Inline function code
             # This is our opportunity to recurse... please don't yet
-            cur_block.append(ast.For(target=ast.Name(id='____'),
-                                     iter=ast.List(elts=[ast.NameConstant(None)]),
+            cur_block.append(ast.For(target=ast.Name(id='____', ctx=ast.Store()),
+                                     iter=ast.List(elts=[ast.NameConstant(None)], ctx=ast.Load()),
                                      body=fbody,
                                      orelse=[]))
 
             # fun_name['return']
-            return ast.Subscript(value=ast.Name(id=fname),
-                                 slice=ast.Str('return'),
-                                 expr_context=ast.Load())
+            return ast.Name(id='_'+fname, ctx=ast.Load())
 
         else:
             return node
