@@ -618,6 +618,16 @@ class TestInline(PragmaTest):
         ''')
         self.assertEqual(f.strip(), result.strip())
 
+    # def test_failure_cases(self):
+    #     def g_for(x):
+    #         for i in range(5):
+    #             yield x
+    #
+    #     def f(y):
+    #         return g_for(y)
+    #
+    #     self.assertRaises(AssertionError, pragma.inline(g_for), f)
+
 
 class TestDictStack(PragmaTest):
     def test_most(self):

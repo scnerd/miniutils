@@ -98,28 +98,28 @@ class TrackedContextTransformer(ast.NodeTransformer):
                     # print("Setting {} = {}".format(var, val))
                     self.ctxt[var] = val
                 erase_targets = False
-            elif isinstance(node.targets[0], ast.Subscript):
-                targ = node.targets[0]
-                iterable = constant_iterable(targ.value, self.ctxt, False)
-                if iterable is None:
-                    iterable = constant_dict(targ.value, self.ctxt)
-                if iterable is None:
-                    return node
-                key = resolve_literal(targ.slice, self.ctxt)
-                if isinstance(key, ast.AST):
-                    return node
-
-                nvalue = copy.deepcopy(node.value)
-                val = constant_iterable(nvalue, self.ctxt)
-                warnings.warn("Iterable assignment not fully implemented yet...")
-                if val is not None:
-                    # print("Setting {} = {}".format(var, val))
-                    iterable[key] = val
-                else:
-                    val = resolve_literal(nvalue, self.ctxt)
-                    # print("Setting {} = {}".format(var, val))
-                    iterable[key] = val
-                erase_targets = False
+            # elif isinstance(node.targets[0], ast.Subscript):
+            #     targ = node.targets[0]
+            #     iterable = constant_iterable(targ.value, self.ctxt, False)
+            #     if iterable is None:
+            #         iterable = constant_dict(targ.value, self.ctxt)
+            #     if iterable is None:
+            #         return node
+            #     key = resolve_literal(targ.slice, self.ctxt)
+            #     if isinstance(key, ast.AST):
+            #         return node
+            #
+            #     nvalue = copy.deepcopy(node.value)
+            #     val = constant_iterable(nvalue, self.ctxt)
+            #     warnings.warn("Iterable assignment not fully implemented yet...")
+            #     if val is not None:
+            #         # print("Setting {} = {}".format(var, val))
+            #         iterable[key] = val
+            #     else:
+            #         val = resolve_literal(nvalue, self.ctxt)
+            #         # print("Setting {} = {}".format(var, val))
+            #         iterable[key] = val
+            #     erase_targets = False
 
         if erase_targets:
             for targ in node.targets:

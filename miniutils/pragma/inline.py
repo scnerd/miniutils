@@ -126,6 +126,7 @@ class InlineTransformer(TrackedContextTransformer):
             if fun != node_fun:
                 continue
 
+            # TODO: Check if function is generator, and if so produce its list instead of a return value
             cur_block = self.code_blocks[-1]
 
             # Load arguments into their appropriate variables
