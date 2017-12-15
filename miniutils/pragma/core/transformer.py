@@ -81,6 +81,15 @@ class TrackedContextTransformer(ast.NodeTransformer):
         self.ctxt = ctxt or DictStack()
         super().__init__()
 
+    def visit_many(self, nodes):
+        for n in nodes:
+            n = self.visit(n)
+            if n is not None:
+                if isinstance(n, ast.AST):
+                    yield n
+                else:
+                    yield from n
+
     def visit_Assign(self, node):
         node.value = self.visit(node.value)
         erase_targets = True
@@ -133,11 +142,30 @@ class TrackedContextTransformer(ast.NodeTransformer):
             self.ctxt[assgn] = None
         return super().generic_visit(node)
 
-    def visit_Del(self, node):
+    def visit_Delete(self, node):
         for targ in node.targets:
             for assgn in _assign_names(targ):
                 del self.ctxt[assgn]
         return super().generic_visit(node)
+
+    def visit_FunctionDef(self, node):
+        self.ctxt.push({}, False)
+        node.body = list(self.visit_many(node.body))
+        self.ctxt.pop()
+        return self.generic_visit(node)
+
+    def visit_AsyncFunctionDef(self, node):
+        self.ctxt.push({}, False)
+        node.body = list(self.visit_many(node.body))
+        self.ctxt.pop()
+        return self.generic_visit(node)
+
+    def visit_ClassDef(self, node):
+        self.ctxt.push({}, False)
+        node.body = list(self.visit_many(node.body))
+        self.ctxt.pop()
+        return self.generic_visit(node)
+
 
 
 def make_function_transformer(transformer_type, name, description, **transformer_kwargs):

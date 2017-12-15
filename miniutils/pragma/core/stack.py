@@ -8,6 +8,9 @@ class DictStack:
         self.dicts = [dict(builtins.__dict__)] + [dict(d) for d in base]
         self.constants = [True] + [False] * len(base)
 
+    def __iter__(self):
+        return (key for dct in self.dicts for key in dct.keys())
+
     def __setitem__(self, key, value):
         # print("SETTING {} = {}".format(key, value))
         self.dicts[-1][key] = value
@@ -28,11 +31,7 @@ class DictStack:
         raise KeyError()
 
     def __contains__(self, item):
-        try:
-            _ = self[item]
-            return True
-        except KeyError:
-            return False
+        return any(item == key for dct in self.dicts for key in dct.keys())
 
     def items(self):
         items = []

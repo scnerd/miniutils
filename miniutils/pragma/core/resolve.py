@@ -154,7 +154,11 @@ def resolve_name_or_attribute(node, ctxt):
     """
     if isinstance(node, ast.Name):
         if node.id in ctxt:
-            return ctxt[node.id]
+            try:
+                return ctxt[node.id]
+            except KeyError:
+                # This occurs if we know that the name was assigned, but we don't know what to... just return the node
+                return node
         else:
             return node
     elif isinstance(node, ast.NameConstant):

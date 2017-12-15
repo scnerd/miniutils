@@ -581,12 +581,15 @@ class TestInline(PragmaTest):
 
         result = dedent('''
         def f(y):
-            _g = {}
-            _g['x'] = y + 3
+            _g_0 = {}
+            _g_0['x'] = y + 3
+            _g_0['return'] = None
             for ____ in [None]:
-                _g['return'] = _g['x'] ** 2
+                _g_0['return'] = _g_0['x'] ** 2
                 break
-            return _g.get('return', None)
+            _g_return_0 = _g_0['return']
+            del _g_0
+            return _g_return_0
         ''')
         self.assertEqual(f.strip(), result.strip())
 
@@ -611,10 +614,13 @@ class TestInline(PragmaTest):
 
         result = dedent('''
         def f(y):
-            _g = {}
-            _g['x'] = y + 3
-            _g['return'] = _g['x'] ** 2
-            return _g.get('return', None)
+            _g_0 = {}
+            _g_0['x'] = y + 3
+            _g_0['return'] = None
+            _g_0['return'] = _g_0['x'] ** 2
+            _g_return_0 = _g_0['return']
+            del _g_0
+            return _g_return_0
         ''')
         self.assertEqual(f.strip(), result.strip())
 
@@ -632,23 +638,56 @@ class TestInline(PragmaTest):
 
         result = dedent('''
         def f():
-            _g = {}
-            _g['x'] = 1
-            _g['args'] = 2, 3, 4
-            _g['y'] = 5
-            _g['kwargs'] = {'z': 6, 'w': 7}
+            _g_0 = {}
+            _g_0['x'] = 1
+            _g_0['args'] = 2, 3, 4
+            _g_0['y'] = 5
+            _g_0['kwargs'] = {'z': 6, 'w': 7}
             for ____ in [None]:
-                print('X = {}'.format(_g['x']))
-                for i, a in enumerate(_g['args']):
+                print('X = {}'.format(_g_0['x']))
+                for i, a in enumerate(_g_0['args']):
                     print('args[{}] = {}'.format(i, a))
-                print('Y = {}'.format(_g['y']))
-                for k, v in _g['kwargs'].items():
+                print('Y = {}'.format(_g_0['y']))
+                for k, v in _g_0['kwargs'].items():
                     print('{} = {}'.format(k, v))
-            _g.get('return', None)
+            None
         ''')
         self.assertEqual(pragma.inline(g, return_source=True)(f).strip(), result.strip())
 
         self.assertEqual(f(), pragma.inline(g)(f)())
+
+    def test_recursive(self):
+        def fib(n):
+            if n <= 0:
+                return 1
+            elif n == 1:
+                return 1
+            else:
+                return fib(n-1) + fib(n-2)
+
+        from miniutils import tic
+        toc = tic()
+        fib_code = pragma.inline(fib, max_depth=1, return_source=True)(fib)
+        toc("Inlined recursive function to depth 1")
+        print(fib_code)
+        # fib_code = pragma.inline(fib, max_depth=3, return_source=True)(fib)
+        # toc("Inlined recursive function to depth 3")
+        # print(fib_code)
+
+        fib = pragma.inline(fib, max_depth=2)(fib)
+        toc("Inlined executable function")
+        self.assertEqual(fib(0), 1)
+        toc("Ran fib(0)")
+        self.assertEqual(fib(1), 1)
+        toc("Ran fib(1)")
+        self.assertEqual(fib(2), 2)
+        toc("Ran fib(2)")
+        self.assertEqual(fib(3), 3)
+        toc("Ran fib(3)")
+        self.assertEqual(fib(4), 5)
+        toc("Ran fib(4)")
+        self.assertEqual(fib(5), 8)
+        toc("Ran fib(5)")
 
     # def test_failure_cases(self):
     #     def g_for(x):
