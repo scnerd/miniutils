@@ -55,11 +55,12 @@ def _assign_names(node):
 
 class DebugTransformerMixin:
     def visit(self, node):
-        orig_node = copy.deepcopy(node)
+        orig_node_code = astor.to_source(node).strip()
+        print("Starting to visit >> {} <<".format(orig_node_code))
+
         new_node = super().visit(node)
 
         try:
-            orig_node_code = astor.to_source(orig_node).strip()
             if new_node is None:
                 print("Deleted >>> {} <<<".format(orig_node_code))
             elif isinstance(new_node, ast.AST):
@@ -67,7 +68,7 @@ class DebugTransformerMixin:
             elif isinstance(new_node, list):
                 print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
         except Exception as ex:
-            raise AssertionError("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node))) from ex
+            raise AssertionError("Failed on {} >>> {}".format(orig_node_code, astor.dump_tree(new_node))) from ex
             # print("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node)))
             # return orig_node
 

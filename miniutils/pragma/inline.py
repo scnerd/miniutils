@@ -46,10 +46,41 @@ from collections import OrderedDict as odict
 #           attributes (int lineno, int col_offset)
 
 
+# @magic_contract
+def make_name(fname, var, ctx=ast.Load, fmt="_{fname}", use_default=False, default=lambda: ast.NameConstant(None)):
+    """
+    Create an AST node to represent the given argument name in the given function
+    :param fname: Function name
+    :type fname: str
+    :param var: Argument name
+    :type var: str
+    :param ctx: Context of this name (LOAD or STORE)
+    :type ctx: Load|Store
+    :param fmt: Name format (if not stored in a dictionary)
+    :type fmt: str
+    :param use_default: Whether or not to return a default value if one isn't found
+    :type use_default: bool
+    :param default: A function that returns default value (as AST) if the argument isn't found
+    :type default: function
+    :return: An AST node representing this argument
+    :rtype: Subscript|Call
+    """
+    if use_default:
+        return ast.Call(func=ast.Attribute(value=ast.Name(id=fmt.format(fname=fname), ctx=ast.Load()),
+                                           attr='get',
+                                           ctx=ast.Load()),
+                        args=[ast.Str(var), default()],
+                        keywords=[])
+    else:
+        return ast.Subscript(value=ast.Name(id=fmt.format(fname=fname), ctx=ast.Load()),
+                             slice=ast.Index(ast.Str(var)),
+                             ctx=ctx())
+
+
 class _InlineBodyTransformer(TrackedContextTransformer):
     def __init__(self, func_name, param_names):
         self.func_name = func_name
-        print("Func {} takes parameters {}".format(func_name, param_names))
+        # print("Func {} takes parameters {}".format(func_name, param_names))
         self.param_names = param_names
         self.in_break_block = False
         super().__init__()
@@ -57,14 +88,13 @@ class _InlineBodyTransformer(TrackedContextTransformer):
     def visit_Name(self, node):
         # Check if this is a parameter, and hasn't had another value assigned to it
         if node.id in self.param_names:
-            print("Found parameter reference {}".format(node.id))
+            # print("Found parameter reference {}".format(node.id))
             if node.id not in self.ctxt:
                 # If so, get its value from the argument dictionary
-                return ast.Subscript(value=ast.Name(id='_'+self.func_name, ctx=ast.Load()),
-                                     slice=ast.Index(ast.Str(node.id)),
-                                     ctx=getattr(node, 'expr_context', ast.Load()))
+                return make_name(self.func_name, node.id, type(getattr(node, 'ctx', ast.Load())))
             else:
-                print("But it's been overwritten to {} = {}".format(node.id, self.ctxt[node.id]))
+                # print("But it's been overwritten to {} = {}".format(node.id, self.ctxt[node.id]))
+                pass
         return node
 
     def visit_Return(self, node):
@@ -72,7 +102,7 @@ class _InlineBodyTransformer(TrackedContextTransformer):
             raise NotImplementedError("miniutils.pragma.inline cannot handle returns from within a loop")
         result = []
         if node.value:
-            result.append(ast.Assign(targets=[ast.Name(id='_'+self.func_name, ctx=ast.Store())],
+            result.append(ast.Assign(targets=[make_name(self.func_name, 'return', ast.Store)],
                                      value=self.visit(node.value)))
         result.append(ast.Break())
         return result
@@ -104,7 +134,6 @@ class InlineTransformer(TrackedContextTransformer):
         """When we visit a block of statements, create a new "code block" and push statements into it"""
         lst = []
         self.code_blocks.append(lst)
-        print(nodes)
         for n in nodes:
             res = self.visit(n)
             if res is None:
@@ -131,8 +160,8 @@ class InlineTransformer(TrackedContextTransformer):
 
             # Load arguments into their appropriate variables
             args = node.args
-            keywords = [(name.id, value) for name, value in node.keywords if name is not None]
-            kw_dict = [value for name, value in node.keywords if name is None]
+            keywords = [(kw.arg, kw.value) for kw in node.keywords if kw.arg is not None]
+            kw_dict = [kw.value for kw in node.keywords if kw.arg is None]
             kw_dict = kw_dict[0] if kw_dict else None
             bound_args = fsig.bind(*node.args, **odict(keywords))
             bound_args.apply_defaults()
@@ -143,10 +172,15 @@ class InlineTransformer(TrackedContextTransformer):
                                         value=ast.Dict(keys=[], values=[])))
 
             for arg_name, arg_value in bound_args.arguments.items():
+                if isinstance(arg_value, tuple):
+                    arg_value = ast.Tuple(elts=list(arg_value), ctx=ast.Load())
+                elif isinstance(arg_value, dict):
+                    keys, values = zip(*list(arg_value.items()))
+                    keys = [ast.Str(k) for k in keys]
+                    values = list(values)
+                    arg_value = ast.Dict(keys=keys, values=values)
                 # fun_name['param_name'] = param_value
-                cur_block.append(ast.Assign(targets=[ast.Subscript(value=ast.Name(id='_'+fname, ctx=ast.Load()),
-                                                                   slice=ast.Index(ast.Str(arg_name)),
-                                                                   ctx=ast.Store())],
+                cur_block.append(ast.Assign(targets=[make_name(fname, arg_name, ast.Store)],
                                             value=arg_value))
 
             if kw_dict:
@@ -158,14 +192,22 @@ class InlineTransformer(TrackedContextTransformer):
                                           keywords=[]))
 
             # Inline function code
-            # This is our opportunity to recurse... please don't yet
+            new_body = []
+            for node in fbody:
+                node = self.visit(node)
+                if node:
+                    if isinstance(node, ast.AST):
+                        new_body.append(node)
+                    else:
+                        new_body.extend(node)
+
             cur_block.append(ast.For(target=ast.Name(id='____', ctx=ast.Store()),
                                      iter=ast.List(elts=[ast.NameConstant(None)], ctx=ast.Load()),
-                                     body=fbody,
+                                     body=new_body,
                                      orelse=[]))
 
             # fun_name['return']
-            return ast.Name(id='_'+fname, ctx=ast.Load())
+            return make_name(fname, 'return', ast.Load, use_default=True)
 
         else:
             return node
@@ -251,13 +293,13 @@ def inline(*funs_to_inline, **kwargs):
         _, fbody, _ = function_ast(fun_to_inline)
 
         import astor
-        print(astor.dump_tree(fbody))
+        # print(astor.dump_tree(fbody))
         name_transformer = _InlineBodyTransformer(fname, fsig.parameters)
         fbody = [name_transformer.visit(stmt) for stmt in fbody]
         fbody = [stmt for visited in fbody for stmt in (visited if isinstance(visited, list)
                                                         else [visited] if visited is not None
                                                         else [])]
-        print(astor.dump_tree(fbody))
+        # print(astor.dump_tree(fbody))
         funs.append((fun_to_inline, fname, fsig, fbody))
 
     return make_function_transformer(InlineTransformer,

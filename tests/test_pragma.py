@@ -584,9 +584,9 @@ class TestInline(PragmaTest):
             _g = {}
             _g['x'] = y + 3
             for ____ in [None]:
-                _g = _g['x'] ** 2
+                _g['return'] = _g['x'] ** 2
                 break
-            return _g
+            return _g.get('return', None)
         ''')
         self.assertEqual(f.strip(), result.strip())
 
@@ -613,10 +613,42 @@ class TestInline(PragmaTest):
         def f(y):
             _g = {}
             _g['x'] = y + 3
-            _g = _g['x'] ** 2
-            return _g
+            _g['return'] = _g['x'] ** 2
+            return _g.get('return', None)
         ''')
         self.assertEqual(f.strip(), result.strip())
+
+    def test_more_complex(self):
+        def g(x, *args, y, **kwargs):
+            print("X = {}".format(x))
+            for i, a in enumerate(args):
+                print("args[{}] = {}".format(i, a))
+            print("Y = {}".format(y))
+            for k, v in kwargs.items():
+                print("{} = {}".format(k, v))
+
+        def f():
+            g(1, 2, 3, 4, y=5, z=6, w=7)
+
+        result = dedent('''
+        def f():
+            _g = {}
+            _g['x'] = 1
+            _g['args'] = 2, 3, 4
+            _g['y'] = 5
+            _g['kwargs'] = {'z': 6, 'w': 7}
+            for ____ in [None]:
+                print('X = {}'.format(_g['x']))
+                for i, a in enumerate(_g['args']):
+                    print('args[{}] = {}'.format(i, a))
+                print('Y = {}'.format(_g['y']))
+                for k, v in _g['kwargs'].items():
+                    print('{} = {}'.format(k, v))
+            _g.get('return', None)
+        ''')
+        self.assertEqual(pragma.inline(g, return_source=True)(f).strip(), result.strip())
+
+        self.assertEqual(f(), pragma.inline(g)(f)())
 
     # def test_failure_cases(self):
     #     def g_for(x):
