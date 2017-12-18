@@ -53,7 +53,7 @@ def _assign_names(node):
         yield from _assign_names(node.value)
 
 
-class DebugTransformerMixin:
+class DebugTransformerMixin:  # pragma: nocover
     def visit(self, node):
         orig_node_code = astor.to_source(node).strip()
         print("Starting to visit >> {} <<".format(orig_node_code))

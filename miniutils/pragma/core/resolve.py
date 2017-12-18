@@ -278,7 +278,7 @@ def _resolve_literal(node, ctxt):
             return node
         else:
             try:
-                return _collapse_map[node.op](operand)
+                return _collapse_map[type(node.op)](operand)
             except:
                 warnings.warn(
                     "Unary op collapse failed. Collapsing skipped, but executing this function will likely fail."

@@ -274,11 +274,12 @@ class InlineTransformer(TrackedContextTransformer):
                     cur_block.append(self.visit(ast.Assign(targets=[ast.Name(id=output_name, ctx=ast.Store())],
                                                            value=make_name(fname, 'return', n))))
 
-                cur_block.append(self.visit(ast.Delete(targets=[ast.Name(id=args_dict_name, ctx=ast.Del())])))
-                return ast.Name(id=output_name, ctx=ast.Load())
+                return_node = ast.Name(id=output_name, ctx=ast.Load())
             else:
-                return ast.NameConstant(None)
-                # return ast.Pass()
+                return_node = ast.NameConstant(None)
+
+            cur_block.append(self.visit(ast.Delete(targets=[ast.Name(id=args_dict_name, ctx=ast.Del())])))
+            return return_node
 
         else:
             return node

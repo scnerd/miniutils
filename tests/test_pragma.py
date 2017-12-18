@@ -404,6 +404,14 @@ class TestCollapseLiterals(PragmaTest):
 
             self.assertTrue(issubclass(w[-1].category, UserWarning))
 
+        warnings.resetwarnings()
+        with warnings.catch_warnings(record=True) as w:
+            @pragma.collapse_literals
+            def f():
+                return -"5"
+
+            self.assertTrue(issubclass(w[-1].category, UserWarning))
+
     # TODO: implement the features to get this test to work
     # def test_conditional_erasure(self):
     #     @pragma.collapse_literals(return_source=True)
@@ -465,6 +473,17 @@ class TestCollapseLiterals(PragmaTest):
         self.assertEqual(pragma.collapse_literals(return_source=True, x=0)(fn).strip(), result0.strip())
         self.assertEqual(pragma.collapse_literals(return_source=True, x=1)(fn).strip(), result1.strip())
         self.assertEqual(pragma.collapse_literals(return_source=True, x=2)(fn).strip(), result2.strip())
+
+    def test_unary(self):
+        @pragma.collapse_literals(return_source=True)
+        def f():
+            return 1 + -5
+
+        result = dedent('''
+        def f():
+            return -4
+        ''')
+        self.assertEqual(f.strip(), result.strip())
 
 
 class TestDeindex(PragmaTest):
@@ -650,6 +669,7 @@ class TestInline(PragmaTest):
                 print('Y = {}'.format(_g_0['y']))
                 for k, v in _g_0['kwargs'].items():
                     print('{} = {}'.format(k, v))
+            del _g_0
             None
         ''')
         self.assertEqual(pragma.inline(g, return_source=True)(f).strip(), result.strip())
@@ -797,8 +817,26 @@ class TestInline(PragmaTest):
         ''')
         self.assertEqual(f.strip(), result.strip())
 
+    def test_coverage(self):
+        def g(y):
+            while False:
+                print(y)
 
+        @pragma.inline(g, return_source=True)
+        def f():
+            g(5)
 
+        result = dedent('''
+        def f():
+            _g_0 = {}
+            _g_0['y'] = 5
+            for ____ in [None]:
+                while False:
+                    print(_g_0['y'])
+            del _g_0
+            None
+        ''')
+        self.assertEqual(f.strip(), result.strip())
 
 
 class TestDictStack(PragmaTest):
