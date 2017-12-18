@@ -699,6 +699,80 @@ class TestInline(PragmaTest):
     #
     #     self.assertRaises(AssertionError, pragma.inline(g_for), f)
 
+    def test_flip_flop(self):
+        def g(x):
+            return f(x / 2)
+
+        def f(y):
+            if y <= 0:
+                return 0
+            return g(y - 1)
+
+        f_code = pragma.inline(g, return_source=True)(f)
+
+        result = dedent('''
+        def f(y):
+            if y <= 0:
+                return 0
+            _g_0 = {}
+            _g_0['x'] = y - 1
+            _g_0['return'] = None
+            for ____ in [None]:
+                _g_0['return'] = f(_g_0['x'] / 2)
+                break
+            _g_return_0 = _g_0['return']
+            del _g_0
+            return _g_return_0
+        ''')
+        self.assertEqual(f_code.strip(), result.strip())
+
+        f_unroll_code = pragma.unroll(return_source=True)(pragma.inline(g)(f))
+
+        result_unroll = dedent('''
+        def f(y):
+            if y <= 0:
+                return 0
+            _g_0 = {}
+            _g_0['x'] = y - 1
+            _g_0['return'] = None
+            _g_0['return'] = f(_g_0['x'] / 2)
+            _g_return_0 = _g_0['return']
+            del _g_0
+            return _g_return_0
+        ''')
+        self.assertEqual(f_unroll_code.strip(), result_unroll.strip())
+
+        f2_code = pragma.inline(f, g, return_source=True, f=f)(f)
+
+        result2 = dedent('''
+        def f(y):
+            if y <= 0:
+                return 0
+            _g_0 = {}
+            _g_0['x'] = y - 1
+            _g_0['return'] = None
+            _f_0 = {}
+            _f_0['y'] = _g_0['x'] / 2
+            _f_0['return'] = None
+            for ____ in [None]:
+                if _f_0['y'] <= 0:
+                    _f_0['return'] = 0
+                    break
+                _f_0['return'] = g(_f_0['y'] - 1)
+                break
+            _f_return_0 = _f_0['return']
+            del _f_0
+            for ____ in [None]:
+                _g_0['return'] = _f_return_0
+                break
+            _g_return_0 = _g_0['return']
+            del _g_0
+            return _g_return_0
+        ''')
+        print(f2_code)
+        self.assertEqual(f2_code.strip(), result2.strip())
+
+
 
 class TestDictStack(PragmaTest):
     def test_most(self):
