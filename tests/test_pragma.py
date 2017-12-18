@@ -772,6 +772,33 @@ class TestInline(PragmaTest):
         print(f2_code)
         self.assertEqual(f2_code.strip(), result2.strip())
 
+    def test_generator(self):
+        def g(y):
+            for i in range(y):
+                yield i
+            yield from range(y)
+
+        @pragma.inline(g, return_source=True)
+        def f(x):
+            return sum(g(x))
+
+        result = dedent('''
+        def f(x):
+            _g_0 = {}
+            _g_0['y'] = x
+            _g_0['yield'] = []
+            for ____ in [None]:
+                for i in range(_g_0['y']):
+                    _g_0['yield'].append(i)
+                _g_0['yield'].extend(range(_g_0['y']))
+            _g_return_0 = _g_0['yield']
+            del _g_0
+            return sum(_g_return_0)
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+
+
 
 
 class TestDictStack(PragmaTest):

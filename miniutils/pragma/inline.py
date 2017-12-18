@@ -113,7 +113,8 @@ class _InlineBodyTransformer(TrackedContextTransformer):
             return ast.Call(func=ast.Attribute(value=make_name(self.func_name, 'yield', self.n, ctx=ast.Load),
                                                attr='append',
                                                ctx=ast.Load),
-                            args=node.value)
+                            args=[self.visit(node.value)],
+                            keywords=[])
         return node
 
     def visit_YieldFrom(self, node):
@@ -121,7 +122,8 @@ class _InlineBodyTransformer(TrackedContextTransformer):
         return ast.Call(func=ast.Attribute(value=make_name(self.func_name, 'yield', self.n, ctx=ast.Load),
                                            attr='extend',
                                            ctx=ast.Load),
-                        args=node.value)
+                        args=[self.visit(node.value)],
+                        keywords=[])
 
     def visit_For(self, node):
         orig_in_break_block = self.in_break_block
@@ -235,9 +237,7 @@ class InlineTransformer(TrackedContextTransformer):
 
             if func_for_inlining.had_yield:
                 new_code.append(ast.Assign(targets=[make_name(fname, 'yield', n, ast.Store)],
-                                           value=ast.Call(func=ast.Name(id='set', ctx=ast.Load()),
-                                                          args=[],
-                                                          keywords=[])))
+                                           value=ast.List(elts=[])))
             if func_for_inlining.had_return:
                 new_code.append(ast.Assign(targets=[make_name(fname, 'return', n, ast.Store)],
                                            value=ast.NameConstant(None)))
