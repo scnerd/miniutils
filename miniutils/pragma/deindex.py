@@ -12,7 +12,7 @@ def deindex(iterable, iterable_name, *args, **kwargs):
     :type iterable: iterable
     :param iterable_name: The list's name (must be unique if deindexing multiple lists)
     :type iterable_name: str
-    :param args: Other command line arguments (see :func:`unroll` for documentation)
+    :param args: Other command line arguments (see :func:`collapse_literals` for documentation)
     :type args: tuple
     :param kwargs: Any other environmental variables to provide during unrolling
     :type kwargs: dict

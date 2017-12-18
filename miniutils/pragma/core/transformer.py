@@ -9,12 +9,12 @@ import astor
 
 from miniutils.magic_contract import magic_contract
 from miniutils.opt_decorator import optional_argument_decorator
-from .resolve import collapse_literal, constant_iterable
+from .resolve import *
 from .stack import DictStack
 
 
 @magic_contract
-def _function_ast(f):
+def function_ast(f):
     """
     Returns ast for the given function. Gives a tuple of (ast_module, function_body, function_file
     :param f: The function to parse
@@ -40,7 +40,7 @@ def _assign_names(node):
     "(x,(y,z)),(a,) = something" -> ["x", "y", "z", "a"]
 
     :param node: The AST node to resolve to a list of names
-    :type node: Name|Tuple
+    :type node: AST
     :return: The flattened list of names referenced in this node
     :rtype: iterable
     """
@@ -50,7 +50,30 @@ def _assign_names(node):
         for e in node.elts:
             yield from _assign_names(e)
     elif isinstance(node, ast.Subscript):
-        raise NotImplemented()
+        yield from _assign_names(node.value)
+
+
+class DebugTransformerMixin:  # pragma: nocover
+    def visit(self, node):
+        orig_node_code = astor.to_source(node).strip()
+        print("Starting to visit >> {} <<".format(orig_node_code))
+
+        new_node = super().visit(node)
+
+        try:
+            if new_node is None:
+                print("Deleted >>> {} <<<".format(orig_node_code))
+            elif isinstance(new_node, ast.AST):
+                print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
+            elif isinstance(new_node, list):
+                print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
+        except Exception as ex:
+            raise AssertionError("Failed on {} >>> {}".format(orig_node_code, astor.dump_tree(new_node))) from ex
+            # print("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node)))
+            # return orig_node
+
+        return new_node
+
 
 
 class TrackedContextTransformer(ast.NodeTransformer):
@@ -58,41 +81,57 @@ class TrackedContextTransformer(ast.NodeTransformer):
         self.ctxt = ctxt or DictStack()
         super().__init__()
 
-    # def visit(self, node):
-    #     orig_node = copy.deepcopy(node)
-    #     new_node = super().visit(node)
-    #
-    #     try:
-    #         orig_node_code = astor.to_source(orig_node).strip()
-    #         if new_node is None:
-    #             print("Deleted >>> {} <<<".format(orig_node_code))
-    #         elif isinstance(new_node, ast.AST):
-    #             print("Converted >>> {} <<< to >>> {} <<<".format(orig_node_code, astor.to_source(new_node).strip()))
-    #         elif isinstance(new_node, list):
-    #             print("Converted >>> {} <<< to [[[ {} ]]]".format(orig_node_code, ", ".join(astor.to_source(n).strip() for n in new_node)))
-    #     except Exception as ex:
-    #         raise AssertionError("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node))) from ex
-    #         # print("Failed on {} >>> {}".format(astor.dump_tree(orig_node), astor.dump_tree(new_node)))
-    #         # return orig_node
-    #
-    #     return new_node
+    def visit_many(self, nodes):
+        for n in nodes:
+            n = self.visit(n)
+            if n is not None:
+                if isinstance(n, ast.AST):
+                    yield n
+                else:
+                    yield from n
 
     def visit_Assign(self, node):
         node.value = self.visit(node.value)
+        erase_targets = True
         # print(node.value)
         # TODO: Support tuple assignments
-        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-            nvalue = copy.deepcopy(node.value)
-            var = node.targets[0].id
-            val = constant_iterable(nvalue, self.ctxt)
-            if val is not None:
-                # print("Setting {} = {}".format(var, val))
-                self.ctxt[var] = val
-            else:
-                val = collapse_literal(nvalue, self.ctxt)
-                # print("Setting {} = {}".format(var, val))
-                self.ctxt[var] = val
-        else:
+        if len(node.targets) == 1:
+            if isinstance(node.targets[0], ast.Name):
+                nvalue = copy.deepcopy(node.value)
+                var = node.targets[0].id
+                val = constant_iterable(nvalue, self.ctxt)
+                if val is not None:
+                    # print("Setting {} = {}".format(var, val))
+                    self.ctxt[var] = val
+                else:
+                    val = resolve_literal(nvalue, self.ctxt)
+                    # print("Setting {} = {}".format(var, val))
+                    self.ctxt[var] = val
+                erase_targets = False
+            # elif isinstance(node.targets[0], ast.Subscript):
+            #     targ = node.targets[0]
+            #     iterable = constant_iterable(targ.value, self.ctxt, False)
+            #     if iterable is None:
+            #         iterable = constant_dict(targ.value, self.ctxt)
+            #     if iterable is None:
+            #         return node
+            #     key = resolve_literal(targ.slice, self.ctxt)
+            #     if isinstance(key, ast.AST):
+            #         return node
+            #
+            #     nvalue = copy.deepcopy(node.value)
+            #     val = constant_iterable(nvalue, self.ctxt)
+            #     warnings.warn("Iterable assignment not fully implemented yet...")
+            #     if val is not None:
+            #         # print("Setting {} = {}".format(var, val))
+            #         iterable[key] = val
+            #     else:
+            #         val = resolve_literal(nvalue, self.ctxt)
+            #         # print("Setting {} = {}".format(var, val))
+            #         iterable[key] = val
+            #     erase_targets = False
+
+        if erase_targets:
             for targ in node.targets:
                 for assgn in _assign_names(targ):
                     self.ctxt[assgn] = None
@@ -102,6 +141,31 @@ class TrackedContextTransformer(ast.NodeTransformer):
         for assgn in _assign_names(node.target):
             self.ctxt[assgn] = None
         return super().generic_visit(node)
+
+    def visit_Delete(self, node):
+        for targ in node.targets:
+            for assgn in _assign_names(targ):
+                del self.ctxt[assgn]
+        return super().generic_visit(node)
+
+    def visit_FunctionDef(self, node):
+        self.ctxt.push({}, False)
+        node.body = list(self.visit_many(node.body))
+        self.ctxt.pop()
+        return self.generic_visit(node)
+
+    def visit_AsyncFunctionDef(self, node):
+        self.ctxt.push({}, False)
+        node.body = list(self.visit_many(node.body))
+        self.ctxt.pop()
+        return self.generic_visit(node)
+
+    def visit_ClassDef(self, node):
+        self.ctxt.push({}, False)
+        node.body = list(self.visit_many(node.body))
+        self.ctxt.pop()
+        return self.generic_visit(node)
+
 
 
 def make_function_transformer(transformer_type, name, description, **transformer_kwargs):
@@ -123,7 +187,7 @@ def make_function_transformer(transformer_type, name, description, **transformer
 
         @magic_contract(f='function', returns='function|str')
         def inner(f):
-            f_mod, f_body, f_file = _function_ast(f)
+            f_mod, f_body, f_file = function_ast(f)
             # Grab function globals
             glbls = f.__globals__
             # Grab function closure variables
@@ -151,7 +215,6 @@ def make_function_transformer(transformer_type, name, description, **transformer
             if return_source:
                 return source
             else:
-                # func_source = astor.to_source(f_mod)
                 f_mod = ast.fix_missing_locations(f_mod)
                 if save_source:
                     temp = tempfile.NamedTemporaryFile('w', delete=True)

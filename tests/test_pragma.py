@@ -258,6 +258,36 @@ class TestUnroll(PragmaTest):
         ''')
         self.assertEqual(f.strip(), result.strip())
 
+    def test_top_break(self):
+        @pragma.unroll(return_source=True)
+        def f():
+            for i in range(10):
+                print(i)
+                break
+
+        result = dedent('''
+        def f():
+            print(0)
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_inner_break(self):
+        @pragma.unroll(return_source=True)
+        def f(y):
+            for i in range(10):
+                print(i)
+                if i == y:
+                    break
+
+        result = dedent('''
+        def f(y):
+            for i in range(10):
+                print(i)
+                if i == y:
+                    break
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
 
 class TestCollapseLiterals(PragmaTest):
     def test_full_run(self):
@@ -272,7 +302,6 @@ class TestCollapseLiterals(PragmaTest):
                             r += 1 + 2 + y
             return r
 
-        import inspect
         deco_f = pragma.collapse_literals(f)
         self.assertEqual(f(0), deco_f(0))
         self.assertEqual(f(1), deco_f(1))
@@ -375,6 +404,14 @@ class TestCollapseLiterals(PragmaTest):
 
             self.assertTrue(issubclass(w[-1].category, UserWarning))
 
+        warnings.resetwarnings()
+        with warnings.catch_warnings(record=True) as w:
+            @pragma.collapse_literals
+            def f():
+                return -"5"
+
+            self.assertTrue(issubclass(w[-1].category, UserWarning))
+
     # TODO: implement the features to get this test to work
     # def test_conditional_erasure(self):
     #     @pragma.collapse_literals(return_source=True)
@@ -436,6 +473,17 @@ class TestCollapseLiterals(PragmaTest):
         self.assertEqual(pragma.collapse_literals(return_source=True, x=0)(fn).strip(), result0.strip())
         self.assertEqual(pragma.collapse_literals(return_source=True, x=1)(fn).strip(), result1.strip())
         self.assertEqual(pragma.collapse_literals(return_source=True, x=2)(fn).strip(), result2.strip())
+
+    def test_unary(self):
+        @pragma.collapse_literals(return_source=True)
+        def f():
+            return 1 + -5
+
+        result = dedent('''
+        def f():
+            return -4
+        ''')
+        self.assertEqual(f.strip(), result.strip())
 
 
 class TestDeindex(PragmaTest):
@@ -539,6 +587,256 @@ class TestDeindex(PragmaTest):
                 return funcs_2(x)
         ''')
         self.assertEqual(inspect.getsource(run_func).strip(), result.strip())
+
+
+class TestInline(PragmaTest):
+    def test_basic(self):
+        def g(x):
+            return x**2
+
+        @pragma.inline(g, return_source=True)
+        def f(y):
+            return g(y + 3)
+
+        result = dedent('''
+        def f(y):
+            _g_0 = {}
+            _g_0['x'] = y + 3
+            _g_0['return'] = None
+            for ____ in [None]:
+                _g_0['return'] = _g_0['x'] ** 2
+                break
+            _g_return_0 = _g_0['return']
+            del _g_0
+            return _g_return_0
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_basic_run(self):
+        def g(x):
+            return x**2
+
+        @pragma.inline(g)
+        def f(y):
+            return g(y + 3)
+
+        self.assertEqual(f(1), ((1 + 3) ** 2))
+
+    def test_basic_unroll(self):
+        def g(x):
+            return x**2
+
+        @pragma.unroll(return_source=True)
+        @pragma.inline(g)
+        def f(y):
+            return g(y + 3)
+
+        result = dedent('''
+        def f(y):
+            _g_0 = {}
+            _g_0['x'] = y + 3
+            _g_0['return'] = None
+            _g_0['return'] = _g_0['x'] ** 2
+            _g_return_0 = _g_0['return']
+            del _g_0
+            return _g_return_0
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_more_complex(self):
+        def g(x, *args, y, **kwargs):
+            print("X = {}".format(x))
+            for i, a in enumerate(args):
+                print("args[{}] = {}".format(i, a))
+            print("Y = {}".format(y))
+            for k, v in kwargs.items():
+                print("{} = {}".format(k, v))
+
+        def f():
+            g(1, 2, 3, 4, y=5, z=6, w=7)
+
+        result = dedent('''
+        def f():
+            _g_0 = {}
+            _g_0['x'] = 1
+            _g_0['args'] = 2, 3, 4
+            _g_0['y'] = 5
+            _g_0['kwargs'] = {'z': 6, 'w': 7}
+            for ____ in [None]:
+                print('X = {}'.format(_g_0['x']))
+                for i, a in enumerate(_g_0['args']):
+                    print('args[{}] = {}'.format(i, a))
+                print('Y = {}'.format(_g_0['y']))
+                for k, v in _g_0['kwargs'].items():
+                    print('{} = {}'.format(k, v))
+            del _g_0
+            None
+        ''')
+        self.assertEqual(pragma.inline(g, return_source=True)(f).strip(), result.strip())
+
+        self.assertEqual(f(), pragma.inline(g)(f)())
+
+    def test_recursive(self):
+        def fib(n):
+            if n <= 0:
+                return 1
+            elif n == 1:
+                return 1
+            else:
+                return fib(n-1) + fib(n-2)
+
+        from miniutils import tic
+        toc = tic()
+        fib_code = pragma.inline(fib, max_depth=1, return_source=True)(fib)
+        toc("Inlined recursive function to depth 1")
+        print(fib_code)
+        # fib_code = pragma.inline(fib, max_depth=3, return_source=True)(fib)
+        # toc("Inlined recursive function to depth 3")
+        # print(fib_code)
+
+        fib = pragma.inline(fib, max_depth=2)(fib)
+        toc("Inlined executable function")
+        self.assertEqual(fib(0), 1)
+        toc("Ran fib(0)")
+        self.assertEqual(fib(1), 1)
+        toc("Ran fib(1)")
+        self.assertEqual(fib(2), 2)
+        toc("Ran fib(2)")
+        self.assertEqual(fib(3), 3)
+        toc("Ran fib(3)")
+        self.assertEqual(fib(4), 5)
+        toc("Ran fib(4)")
+        self.assertEqual(fib(5), 8)
+        toc("Ran fib(5)")
+
+    # def test_failure_cases(self):
+    #     def g_for(x):
+    #         for i in range(5):
+    #             yield x
+    #
+    #     def f(y):
+    #         return g_for(y)
+    #
+    #     self.assertRaises(AssertionError, pragma.inline(g_for), f)
+
+    def test_flip_flop(self):
+        def g(x):
+            return f(x / 2)
+
+        def f(y):
+            if y <= 0:
+                return 0
+            return g(y - 1)
+
+        f_code = pragma.inline(g, return_source=True)(f)
+
+        result = dedent('''
+        def f(y):
+            if y <= 0:
+                return 0
+            _g_0 = {}
+            _g_0['x'] = y - 1
+            _g_0['return'] = None
+            for ____ in [None]:
+                _g_0['return'] = f(_g_0['x'] / 2)
+                break
+            _g_return_0 = _g_0['return']
+            del _g_0
+            return _g_return_0
+        ''')
+        self.assertEqual(f_code.strip(), result.strip())
+
+        f_unroll_code = pragma.unroll(return_source=True)(pragma.inline(g)(f))
+
+        result_unroll = dedent('''
+        def f(y):
+            if y <= 0:
+                return 0
+            _g_0 = {}
+            _g_0['x'] = y - 1
+            _g_0['return'] = None
+            _g_0['return'] = f(_g_0['x'] / 2)
+            _g_return_0 = _g_0['return']
+            del _g_0
+            return _g_return_0
+        ''')
+        self.assertEqual(f_unroll_code.strip(), result_unroll.strip())
+
+        f2_code = pragma.inline(f, g, return_source=True, f=f)(f)
+
+        result2 = dedent('''
+        def f(y):
+            if y <= 0:
+                return 0
+            _g_0 = {}
+            _g_0['x'] = y - 1
+            _g_0['return'] = None
+            _f_0 = {}
+            _f_0['y'] = _g_0['x'] / 2
+            _f_0['return'] = None
+            for ____ in [None]:
+                if _f_0['y'] <= 0:
+                    _f_0['return'] = 0
+                    break
+                _f_0['return'] = g(_f_0['y'] - 1)
+                break
+            _f_return_0 = _f_0['return']
+            del _f_0
+            for ____ in [None]:
+                _g_0['return'] = _f_return_0
+                break
+            _g_return_0 = _g_0['return']
+            del _g_0
+            return _g_return_0
+        ''')
+        print(f2_code)
+        self.assertEqual(f2_code.strip(), result2.strip())
+
+    def test_generator(self):
+        def g(y):
+            for i in range(y):
+                yield i
+            yield from range(y)
+
+        @pragma.inline(g, return_source=True)
+        def f(x):
+            return sum(g(x))
+
+        result = dedent('''
+        def f(x):
+            _g_0 = {}
+            _g_0['y'] = x
+            _g_0['yield'] = []
+            for ____ in [None]:
+                for i in range(_g_0['y']):
+                    _g_0['yield'].append(i)
+                _g_0['yield'].extend(range(_g_0['y']))
+            _g_return_0 = _g_0['yield']
+            del _g_0
+            return sum(_g_return_0)
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_coverage(self):
+        def g(y):
+            while False:
+                print(y)
+
+        @pragma.inline(g, return_source=True)
+        def f():
+            g(5)
+
+        result = dedent('''
+        def f():
+            _g_0 = {}
+            _g_0['y'] = 5
+            for ____ in [None]:
+                while False:
+                    print(_g_0['y'])
+            del _g_0
+            None
+        ''')
+        self.assertEqual(f.strip(), result.strip())
 
 
 class TestDictStack(PragmaTest):
