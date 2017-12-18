@@ -46,3 +46,9 @@ class TestMakePython2(TestCase):
         uname = MakePython2('os.uname', imports=['os'], copy_function_body=False).function
         import os
         self.assertEqual(uname(), os.uname())
+
+    def test_bad_args(self):
+        def fail():
+            return True
+
+        self.assertRaises(ValueError, MakePython2, fail, imports=[('os', 'path', 'exists')])
