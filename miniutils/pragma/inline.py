@@ -173,6 +173,30 @@ class InlineTransformer(TrackedContextTransformer):
         self.code_blocks.pop()
         return lst
 
+    def generic_visit_less(self, node, *without):
+        for field, old_value in ast.iter_fields(node):
+            if field in without:
+                continue
+            elif isinstance(old_value, list):
+                new_values = []
+                for value in old_value:
+                    if isinstance(value, ast.AST):
+                        value = self.visit(value)
+                        if value is None:
+                            continue
+                        elif not isinstance(value, ast.AST):
+                            new_values.extend(value)
+                            continue
+                    new_values.append(value)
+                old_value[:] = new_values
+            elif isinstance(old_value, ast.AST):
+                new_node = self.visit(old_value)
+                if new_node is None:
+                    delattr(node, field)
+                else:
+                    setattr(node, field, new_node)
+        return node
+
     def visit_Call(self, node):
         """When we see a function call, insert the function body into the current code block, then replace the call
         with the return expression """
@@ -193,27 +217,36 @@ class InlineTransformer(TrackedContextTransformer):
                 warnings.warn("Inline hit recursion limit, using normal function call")
                 return node
 
-            print([k for k in self.ctxt if k not in globals()])
-            print("Inlining {}".format(args_dict_name))
             func_for_inlining = _InlineBodyTransformer(fname, fsig.parameters, n)
             fbody = list(func_for_inlining.visit_many(copy.deepcopy(fbody)))
 
-            # TODO: Check if function is generator, and if so produce its list instead of a return value
+            print(self.code_blocks)
             cur_block = self.code_blocks[-1]
             new_code = []
 
             # Load arguments into their appropriate variables
             args = node.args
+            flattened_args = []
+            for a in args:
+                if isinstance(a, ast.Starred):
+                    a = constant_iterable(a.value, self.ctxt)
+                    if a:
+                        flattened_args.extend(a)
+                    else:
+                        warnings.warn("Cannot inline function call that uses non-constant star args")
+                        return node
+                else:
+                    flattened_args.append(a)
+
             keywords = [(kw.arg, kw.value) for kw in node.keywords if kw.arg is not None]
             kw_dict = [kw.value for kw in node.keywords if kw.arg is None]
             kw_dict = kw_dict[0] if kw_dict else None
-            bound_args = fsig.bind(*node.args, **odict(keywords))
+
+            bound_args = fsig.bind(*flattened_args, **odict(keywords))
             bound_args.apply_defaults()
 
             # Create args dictionary
-            # fun_name = {}
-            new_code.append(ast.Assign(targets=[ast.Name(id=args_dict_name, ctx=ast.Store())],
-                                       value=ast.Dict(keys=[], values=[])))
+            final_args = []
 
             for arg_name, arg_value in bound_args.arguments.items():
                 if isinstance(arg_value, tuple):
@@ -224,23 +257,24 @@ class InlineTransformer(TrackedContextTransformer):
                     values = list(values)
                     arg_value = ast.Dict(keys=keys, values=values)
                 # fun_name['param_name'] = param_value
-                new_code.append(ast.Assign(targets=[make_name(fname, arg_name, n, ast.Store)],
-                                           value=arg_value))
+                final_args.append((arg_name, arg_value))
 
             if kw_dict:
-                # fun_name.update(kwargs)
-                new_code.append(ast.Call(func=ast.Attribute(value=ast.Name(args_dict_name, ctx=ast.Load()),
-                                                            attr='update',
-                                                            ctx=ast.Load()),
-                                          args=[kw_dict],
-                                          keywords=[]))
+                final_args.append((None, kw_dict))
 
             if func_for_inlining.had_yield:
-                new_code.append(ast.Assign(targets=[make_name(fname, 'yield', n, ast.Store)],
-                                           value=ast.List(elts=[])))
-            if func_for_inlining.had_return:
-                new_code.append(ast.Assign(targets=[make_name(fname, 'return', n, ast.Store)],
-                                           value=ast.NameConstant(None)))
+                final_args.append(('yield', ast.List(elts=[])))
+
+            # fun_name = {}
+            dict_call = ast.Call(
+                func=ast.Name(id='dict', ctx=ast.Load()),
+                args=[],
+                keywords=[ast.keyword(arg=name, value=val) for name, val in final_args]
+            )
+            new_code.append(ast.Assign(
+                targets=[ast.Name(id=args_dict_name, ctx=ast.Store())],
+                value=dict_call
+            ))
 
             # Process assignments before resolving body
             cur_block.extend(self.visit_many(new_code))
@@ -271,8 +305,16 @@ class InlineTransformer(TrackedContextTransformer):
                     cur_block.append(self.visit(ast.Assign(targets=[ast.Name(id=output_name, ctx=ast.Store())],
                                                            value=make_name(fname, 'yield', n))))
                 elif func_for_inlining.had_return:
+                    get_call = ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Name(id=args_dict_name, ctx=ast.Load()),
+                            attr='get',
+                            ctx=ast.Load()),
+                        args=[ast.Str('return'), ast.NameConstant(None)],
+                        keywords=[]
+                    )
                     cur_block.append(self.visit(ast.Assign(targets=[ast.Name(id=output_name, ctx=ast.Store())],
-                                                           value=make_name(fname, 'return', n))))
+                                                           value=get_call)))
 
                 return_node = ast.Name(id=output_name, ctx=ast.Load())
             else:
@@ -294,61 +336,61 @@ class InlineTransformer(TrackedContextTransformer):
         self.ctxt.push({}, False)
         node.body = self.nested_visit(node.body)
         self.ctxt.pop()
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body')
 
     def visit_AsyncFunctionDef(self, node):
         self.ctxt.push({}, False)
         node.body = self.nested_visit(node.body)
         self.ctxt.pop()
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body')
 
     def visit_ClassDef(self, node):
         self.ctxt.push({}, False)
         node.body = self.nested_visit(node.body)
         self.ctxt.pop()
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body')
 
     def visit_For(self, node):
         node.body = self.nested_visit(node.body)
         node.orelse = self.nested_visit(node.orelse)
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body', 'orelse')
 
     def visit_AsyncFor(self, node):
         node.body = self.nested_visit(node.body)
         node.orelse = self.nested_visit(node.orelse)
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body', 'orelse')
 
     def visit_While(self, node):
         node.body = self.nested_visit(node.body)
         node.orelse = self.nested_visit(node.orelse)
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body', 'orelse')
 
     def visit_If(self, node):
         node.body = self.nested_visit(node.body)
         node.orelse = self.nested_visit(node.orelse)
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body', 'orelse')
 
     def visit_With(self, node):
         node.body = self.nested_visit(node.body)
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body')
 
     def visit_AsyncWith(self, node):
         node.body = self.nested_visit(node.body)
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body')
 
     def visit_Try(self, node):
         node.body = self.nested_visit(node.body)
         node.body = self.nested_visit(node.orelse)
         node.body = self.nested_visit(node.finalbody)
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body', 'orelse', 'finalbody')
 
     def visit_Module(self, node):
         node.body = self.nested_visit(node.body)
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body')
 
     def visit_ExceptHandler(self, node):
         node.body = self.nested_visit(node.body)
-        return self.generic_visit(node)
+        return self.generic_visit_less(node, 'body')
 
 
 # @magic_contract

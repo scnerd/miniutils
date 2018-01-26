@@ -600,13 +600,11 @@ class TestInline(PragmaTest):
 
         result = dedent('''
         def f(y):
-            _g_0 = {}
-            _g_0['x'] = y + 3
-            _g_0['return'] = None
+            _g_0 = dict(x=y + 3)
             for ____ in [None]:
                 _g_0['return'] = _g_0['x'] ** 2
                 break
-            _g_return_0 = _g_0['return']
+            _g_return_0 = _g_0.get('return', None)
             del _g_0
             return _g_return_0
         ''')
@@ -633,11 +631,9 @@ class TestInline(PragmaTest):
 
         result = dedent('''
         def f(y):
-            _g_0 = {}
-            _g_0['x'] = y + 3
-            _g_0['return'] = None
+            _g_0 = dict(x=y + 3)
             _g_0['return'] = _g_0['x'] ** 2
-            _g_return_0 = _g_0['return']
+            _g_return_0 = _g_0.get('return', None)
             del _g_0
             return _g_return_0
         ''')
@@ -657,11 +653,7 @@ class TestInline(PragmaTest):
 
         result = dedent('''
         def f():
-            _g_0 = {}
-            _g_0['x'] = 1
-            _g_0['args'] = 2, 3, 4
-            _g_0['y'] = 5
-            _g_0['kwargs'] = {'z': 6, 'w': 7}
+            _g_0 = dict(x=1, args=(2, 3, 4), y=5, kwargs={'z': 6, 'w': 7})
             for ____ in [None]:
                 print('X = {}'.format(_g_0['x']))
                 for i, a in enumerate(_g_0['args']):
@@ -734,13 +726,11 @@ class TestInline(PragmaTest):
         def f(y):
             if y <= 0:
                 return 0
-            _g_0 = {}
-            _g_0['x'] = y - 1
-            _g_0['return'] = None
+            _g_0 = dict(x=y - 1)
             for ____ in [None]:
                 _g_0['return'] = f(_g_0['x'] / 2)
                 break
-            _g_return_0 = _g_0['return']
+            _g_return_0 = _g_0.get('return', None)
             del _g_0
             return _g_return_0
         ''')
@@ -752,11 +742,9 @@ class TestInline(PragmaTest):
         def f(y):
             if y <= 0:
                 return 0
-            _g_0 = {}
-            _g_0['x'] = y - 1
-            _g_0['return'] = None
+            _g_0 = dict(x=y - 1)
             _g_0['return'] = f(_g_0['x'] / 2)
-            _g_return_0 = _g_0['return']
+            _g_return_0 = _g_0.get('return', None)
             del _g_0
             return _g_return_0
         ''')
@@ -768,24 +756,20 @@ class TestInline(PragmaTest):
         def f(y):
             if y <= 0:
                 return 0
-            _g_0 = {}
-            _g_0['x'] = y - 1
-            _g_0['return'] = None
-            _f_0 = {}
-            _f_0['y'] = _g_0['x'] / 2
-            _f_0['return'] = None
+            _g_0 = dict(x=y - 1)
+            _f_0 = dict(y=_g_0['x'] / 2)
             for ____ in [None]:
                 if _f_0['y'] <= 0:
                     _f_0['return'] = 0
                     break
                 _f_0['return'] = g(_f_0['y'] - 1)
                 break
-            _f_return_0 = _f_0['return']
+            _f_return_0 = _f_0.get('return', None)
             del _f_0
             for ____ in [None]:
                 _g_0['return'] = _f_return_0
                 break
-            _g_return_0 = _g_0['return']
+            _g_return_0 = _g_0.get('return', None)
             del _g_0
             return _g_return_0
         ''')
@@ -804,9 +788,7 @@ class TestInline(PragmaTest):
 
         result = dedent('''
         def f(x):
-            _g_0 = {}
-            _g_0['y'] = x
-            _g_0['yield'] = []
+            _g_0 = dict(y=x, yield=[])
             for ____ in [None]:
                 for i in range(_g_0['y']):
                     _g_0['yield'].append(i)
@@ -814,6 +796,46 @@ class TestInline(PragmaTest):
             _g_return_0 = _g_0['yield']
             del _g_0
             return sum(_g_return_0)
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_variable_starargs(self):
+        def g(a, b, c):
+            return a + b + c
+
+        @pragma.inline(g, return_source=True)
+        def f(x):
+            return g(*x)
+
+        result = dedent('''
+        def f(x):
+            return g(*x)
+        ''')
+        self.assertEqual(f.strip(), result.strip())
+
+    def test_multiple_inline(self):
+        def a(x):
+            return x ** 2
+
+        def b(x):
+            return x + 2
+
+        @pragma.unroll(return_source=True)
+        @pragma.inline(a, b)
+        def f(x):
+            return a(x) + b(x)
+
+        result = dedent('''
+        def f(x):
+            _a_0 = dict(x=x)
+            _a_0['return'] = _a_0['x'] ** 2
+            _a_return_0 = _a_0.get('return', None)
+            del _a_0
+            _b_0 = dict(x=x)
+            _b_0['return'] = _b_0['x'] + 2
+            _b_return_0 = _b_0.get('return', None)
+            del _b_0
+            return _a_return_0 + _b_return_0
         ''')
         self.assertEqual(f.strip(), result.strip())
 
@@ -828,8 +850,7 @@ class TestInline(PragmaTest):
 
         result = dedent('''
         def f():
-            _g_0 = {}
-            _g_0['y'] = 5
+            _g_0 = dict(y=5)
             for ____ in [None]:
                 while False:
                     print(_g_0['y'])
