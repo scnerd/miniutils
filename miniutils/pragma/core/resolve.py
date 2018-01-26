@@ -250,7 +250,7 @@ def _resolve_literal(node, ctxt):
     elif isinstance(node, ast.Index):
         return _resolve_literal(node.value, ctxt)
     elif isinstance(node, (ast.Slice, ast.ExtSlice)):
-        raise NotImplemented()
+        raise NotImplementedError()
     elif isinstance(node, ast.Subscript):
         # print("Attempting to subscript {}".format(astor.to_source(node)))
         lst = constant_iterable(node.value, ctxt)

@@ -402,7 +402,7 @@ class TestCollapseLiterals(PragmaTest):
             def f():
                 return 1 + "2"
 
-            self.assertTrue(issubclass(w[-1].category, UserWarning))
+            self.assertIsInstance(w[-1].category(), UserWarning)
 
         warnings.resetwarnings()
         with warnings.catch_warnings(record=True) as w:
@@ -410,7 +410,7 @@ class TestCollapseLiterals(PragmaTest):
             def f():
                 return -"5"
 
-            self.assertTrue(issubclass(w[-1].category, UserWarning))
+            self.assertIsInstance(w[-1].category(), UserWarning)
 
     # TODO: implement the features to get this test to work
     # def test_conditional_erasure(self):
@@ -559,6 +559,22 @@ class TestDeindex(PragmaTest):
             yield v[x]
         ''')
         self.assertEqual(f.strip(), result.strip())
+
+    # Not yet supported
+    def test_dict(self):
+        d = {'a': 1, 'b': 2}
+
+        def f(x):
+            yield d['a']
+            yield d[x]
+
+        self.assertRaises(NotImplementedError, pragma.deindex, d, 'd')
+        # result = dedent('''
+        # def f(x):
+        #     yield v_a
+        #     yield v[x]
+        # ''')
+        # self.assertEqual(f.strip(), result.strip())
 
     def test_dynamic_function_calls(self):
         funcs = [lambda x: x, lambda x: x ** 2, lambda x: x ** 3]
@@ -844,20 +860,14 @@ class TestInline(PragmaTest):
             while False:
                 print(y)
 
-        @pragma.inline(g, return_source=True)
         def f():
-            g(5)
+            try:
+                g(5)
+            except:
+                raise
 
-        result = dedent('''
-        def f():
-            _g_0 = dict(y=5)
-            for ____ in [None]:
-                while False:
-                    print(_g_0['y'])
-            del _g_0
-            None
-        ''')
-        self.assertEqual(f.strip(), result.strip())
+        print(pragma.inline(g, return_source=True)(f))
+        self.assertEqual(f(), pragma.inline(g)(f)())
 
 
 class TestDictStack(PragmaTest):

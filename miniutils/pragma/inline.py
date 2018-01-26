@@ -69,10 +69,6 @@ def make_name(fname, var, n, ctx=ast.Load):
                          ctx=ctx())
 
 
-def make_return(fname, n, ctx):
-    return ast.Name(id=DICT_FMT.format(fname=fname, n=n), ctx=ctx())
-
-
 class _InlineBodyTransformer(TrackedContextTransformer):
     def __init__(self, func_name, param_names, n):
         self.func_name = func_name
@@ -380,8 +376,8 @@ class InlineTransformer(TrackedContextTransformer):
 
     def visit_Try(self, node):
         node.body = self.nested_visit(node.body)
-        node.body = self.nested_visit(node.orelse)
-        node.body = self.nested_visit(node.finalbody)
+        node.orelse = self.nested_visit(node.orelse)
+        node.finalbody = self.nested_visit(node.finalbody)
         return self.generic_visit_less(node, 'body', 'orelse', 'finalbody')
 
     def visit_Module(self, node):

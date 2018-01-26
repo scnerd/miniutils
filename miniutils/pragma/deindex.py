@@ -23,6 +23,7 @@ def deindex(iterable, iterable_name, *args, **kwargs):
     if hasattr(iterable, 'items'):  # Support dicts and the like
         internal_iterable = {k: '{}_{}'.format(iterable_name, k) for k, val in iterable.items()}
         mapping = {internal_iterable[k]: val for k, val in iterable.items()}
+        raise NotImplementedError('Dictionary indices are not yet supported')
     else:  # Support lists, tuples, and the like
         internal_iterable = {i: '{}_{}'.format(iterable_name, i) for i, val in enumerate(iterable)}
         mapping = {internal_iterable[i]: val for i, val in enumerate(iterable)}
