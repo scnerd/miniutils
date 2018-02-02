@@ -24,6 +24,7 @@ Welcome to miniutils's documentation!
    caching
    python2
    pragma
+   piper
    misc
    api
 

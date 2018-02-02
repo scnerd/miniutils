@@ -5,3 +5,4 @@ from .progress_bar import progbar, parallel_progbar, iparallel_progbar
 from .py2_wrap import MakePython2
 from .timing import timed_call, make_timed, tic
 from . import logs_base as logger
+from . import piper

@@ -39,6 +39,12 @@ Pragma
 .. autofunction:: miniutils.pragma.deindex
 
 
+Piper
+=====
+
+.. automodule:: miniutils.piper.mp_pipeline
+
+
 Miscellaneous
 =============
 
