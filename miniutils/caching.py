@@ -1,11 +1,10 @@
 import functools
-#from contextlib import contextmanager
 from threading import RLock
-#import inspect
+from functools import partial
 
 
 class CachedCollection:
-    IGNORED_GETS = ['get', 'union', 'intersection', 'difference', 'copy']
+    IGNORED_GETS = ['get', 'union', 'intersection', 'difference', 'copy', 'keys', 'values', 'items']
 
     def __init__(self, value, on_update, container_self, allow_update):
         self.collection = value
@@ -15,11 +14,11 @@ class CachedCollection:
     def __getitem__(self, item):
         return self.collection[item]
 
-    def __missing__(self, key):
-        if not self.allow_update:
-            raise AttributeError("Attempted to perform an action (probably add) an unknown key")
-        self.collection.__missing__(key)
-        self.on_update()
+    # def __missing__(self, key):  # This isn't a dict subclass, it's a wrapper, so this method will never get called
+    #     if not self.allow_update:
+    #         raise AttributeError("Attempted to perform an action (probably add) an unknown key")
+    #     self.collection.__missing__(key)
+    #     self.on_update()
 
     def __setitem__(self, key, value):
         if not self.allow_update:
@@ -104,9 +103,9 @@ class CachedProperty:
         self.f = None
         CachedProperty.caches.append(self)
 
-    def __call__(self, f):
+    def __call__(self, f, name=None):
         self.f = f
-        self.name = name = f.__name__
+        self.name = name = name or f.__name__
         flag_name = '_need_' + name
         cache_name = '_' + name
 
@@ -144,7 +143,8 @@ class CachedProperty:
                 return getattr(inner_self, cache_name)
 
         def inner_deleter(inner_self):
-            assert getattr(inner_self, flag_name, True) or hasattr(inner_self, cache_name)
+            # assert not getattr(inner_self, flag_name, True) or hasattr(inner_self, cache_name)
+            #     raise AttributeError("{} does not have a value for attribute {}".format(inner_self, name))
             setattr(inner_self, flag_name, True)
             if hasattr(inner_self, cache_name):
                 delattr(inner_self, cache_name)
@@ -168,16 +168,76 @@ class CachedProperty:
             return property(fget=inner_getter, fset=inner_setter, fdel=inner_deleter, doc=self.f.__doc__)
 
 
-# def _get_class_that_defined_method(method):
-#     """https://stackoverflow.com/questions/3589311/get-defining-class-of-unbound-method-object-in-python-3"""
-#     if inspect.ismethod(method):
-#         for cls in inspect.getmro(method.__self__.__class__):
-#             if cls.__dict__.get(method.__name__) is method:
-#                 return cls
-#         method = method.__func__  # fallback to __qualname__ parsing
-#     if inspect.isfunction(method):
-#         cls = getattr(inspect.getmodule(method),
-#                       method.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0])
-#         if isinstance(cls, type):
-#             return cls
-#     return getattr(method, '__objclass__', None)  # handle special descriptor objects
+class _LazyIndexable:
+    def __init__(self, getter_closure, on_modified, settable=False, values=None):
+        self._cache = dict(values or {})
+        self._closure = getter_closure
+        self._on_modified = on_modified
+        self.settable = settable
+
+    def __getitem__(self, item):
+        if item not in self._cache:
+            self._cache[item] = self._closure(item)
+            self._on_modified()
+        return self._cache[item]
+
+    def __setitem__(self, key, value):
+        if not self.settable:
+            raise AttributeError("{} is not settable".format(self))
+        self._cache[key] = value
+        self._on_modified()
+
+    def __delitem__(self, key):
+        del self._cache[key]
+        self._on_modified()
+
+    @property
+    def __doc__(self):
+        return self._closure.__doc__
+
+    def update(self, new_values):
+        if not self.settable:
+            raise AttributeError("{} is not settable".format(self))
+        self._cache.update(new_values)
+        self._on_modified()
+
+
+class LazyDictionary:
+    caches = []
+
+    def __init__(self, *affects, allow_collection_mutation=True):
+        """Marks this indexable property to be a cached dictionary. Delete this property to remove the cached value and force it to be rerun.
+
+        :param affects: Strings that list the names of the other properties in this class that are directly invalidated
+         when this property's value is altered
+        :param allow_collection_mutation: Whether or not the returned collection should allow its values to be altered
+        """
+        self.affected_properties = affects
+        self.allow_mutation = allow_collection_mutation
+
+    def __call__(self, f, name=None):
+        self.f = f
+        self.name = name = name or f.__name__
+        cache_name = '_' + name
+
+        def reset_dependents(inner_self):
+            for affected in self.affected_properties:
+                delattr(inner_self, affected)
+
+        @functools.wraps(f)
+        def inner_getter(inner_self):
+            if not hasattr(inner_self, cache_name):
+                new_indexable = _LazyIndexable(functools.wraps(f)(partial(f, inner_self)),
+                                               partial(reset_dependents, inner_self),
+                                               self.allow_mutation)
+                setattr(inner_self, cache_name, new_indexable)
+            return getattr(inner_self, cache_name)
+
+        def inner_deleter(inner_self):
+            if hasattr(inner_self, cache_name):
+                delattr(inner_self, cache_name)
+                # If we make this recursion conditional on the cache existing, we prevent dependency cycles from
+                # breaking the code
+                reset_dependents(inner_self)
+
+        return property(fget=inner_getter, fdel=inner_deleter, doc=self.f.__doc__)

@@ -3,7 +3,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from miniutils.caching import CachedProperty
+from miniutils.caching import CachedProperty, LazyDictionary
 from miniutils.capture_output import captured_output
 
 
@@ -103,6 +103,32 @@ class CollectionProperties:
     @CachedProperty()
     def target(self):
         return True
+
+
+class WithCachedDict:
+    def __init__(self):
+        self.calls = []
+
+    @CachedProperty()
+    def a(self):
+        self.calls.append('a')
+        return self.b + 2
+
+    @CachedProperty('a')
+    def b(self):
+        self.calls.append('b')
+        return self.f[1] + self.f[2]
+
+    @LazyDictionary('b', allow_collection_mutation=True)
+    def f(self, x):
+        self.calls.append('f({})'.format(x))
+        return x ** 2
+
+    @LazyDictionary(allow_collection_mutation=False)
+    def g(self, x):
+        """G docstring"""
+        self.calls.append('g({})'.format(x))
+        return x ** 2
 
 
 class TestCachedProperty(TestCase):
@@ -208,6 +234,15 @@ class TestCachedProperty(TestCase):
         self.assertEqual(i.basic_dict['new_key'], -1)
         self.assertTrue(i._need_target)
 
+    def test_dict_contains(self):
+        i = CollectionProperties()
+        self.assertIn('a', i.basic_dict)
+        self.assertNotIn('d', i.basic_dict)
+        self.assertRaises(KeyError, lambda: i.basic_dict['x'])
+        self.assertIn('a', i.locked_dict)
+        self.assertNotIn('d', i.locked_dict)
+        self.assertRaises(KeyError, lambda: i.locked_dict['x'])
+
     def test_mutable_list_properties(self):
         i = CollectionProperties()
         self.assertTrue(i.target)
@@ -239,3 +274,37 @@ class TestCachedProperty(TestCase):
 
         i.basic_set.difference(i.basic_set)
         self.assertFalse(i._need_target)
+
+    def test_cached_dict(self):
+        w = WithCachedDict()
+        self.assertEqual(w.a, 7)
+        del w.b
+        self.assertEqual(w.b, 5)
+        del w.f
+        self.assertEqual(w.f[5], 25)
+        self.assertEqual(w.f[5], 25)
+        self.assertEqual(w.f[5], 25)
+        del w.f[5]
+        self.assertEqual(w.f[4], 16)
+        self.assertEqual(w.f[5], 25)
+        self.assertEqual(w.f[2], 4)
+        self.assertEqual(w.a, 7)
+        w.f[2] = 7
+        self.assertEqual(w.b, 8)
+        self.assertEqual(w.a, 10)
+        w.f.update({1: 0, 2: 0})
+        self.assertEqual(w.b, 0)
+        self.assertEqual(w.a, 2)
+
+        self.assertEqual(w.g[3], 9)
+        self.assertRaises(AttributeError, w.g.update, {3: 0})
+        try:
+            w.g[3] = 0
+            self.fail("Set value on immutable lazy dict")
+        except AttributeError:
+            pass
+
+        self.assertListEqual(w.calls, ['a', 'b', 'f(1)', 'f(2)', 'b', 'f(5)', 'f(4)', 'f(5)', 'f(2)', 'a', 'b', 'f(1)',
+                                       'b', 'a', 'b', 'a', 'g(3)'])
+
+        self.assertIn('G docstring', w.g.__doc__)
