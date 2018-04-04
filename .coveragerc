@@ -1,9 +1,12 @@
 [run]
+source=miniutils
 concurrency = multiprocessing
-include = miniutils/*.py
 omit =
     miniutils/py2_template.py
     *__init__*
 
 [report]
+include=miniutils/*.py
+omit = 
+    *__init__*
 show_missing = true
