@@ -1,6 +1,9 @@
 Property Cache
 ==============
 
+Basic Property
+++++++++++++++
+
 In some cases, an object has properties that don't need to be computed until necessary, and once computed are generally static and could just be cached. This could be accomplished using the following simple recipe::
 
     class Obj:
@@ -101,3 +104,43 @@ This isn't the complete feature set of the decorator, but it's a good initial ta
     :members:
 
     .. automethod:: __init__
+
+Indexed Property
+++++++++++++++++
+
+Even using the above tools, it is non-concise to allow indexing into a property where values are lazily computed.
+
+The ``LazyDictionary`` decorator allows you to write a ``__getitem__`` style property that can be used like a dictionary and has its results cached::
+
+    class Primes:
+        @LazyDictionary('is_prime')
+        def primes_under(self, i):
+            if i == 0:
+                return []
+            else:
+                return self.primes_under[i-1] + ([i] if self.is_prime[i] else [])
+
+        @LazyDictionary('primes_under')
+        def is_prime(self, i):
+            if not isinstance(i, int) or i < 1:
+                raise ValueError("Can only check if a positive integer is prime")
+            elif i in [1, 2]:
+                return True
+            elif i % 2 == 0:
+                return False
+            else:
+                return all(i % p != 0 for p in self.primes_under[min(i-1, math.sqrt(i))])
+
+    p = Primes()
+    p.is_prime[5] # True, caches the fact that 1, 2, and 3 are prime
+    p.is_prime[500] # False, caches all primes up to sqrt(500)
+    p.is_prime[501] # False, virtually instant since it uses the cached primes used to compute is_prime[500]
+
+The indexing notation is used and preferred to make clear that this decorator only aims to support one hashable argument, and is meant to behave like a dictionary or list. It is not iterable, since the result of that would depend on whatever prior code happened to be executed. Instead, you should iterate through all desired keys, and simply index them; that way, any that need to be re-computed are, and those that can are loaded from cache.
+
+This plugs cleanly into ``CachedProperty``, accepting a list of properties whose values are invalidated when this dictionary is modified. It also supports allowing or disallowing explicit assignment to certain indices::
+
+    p.is_prime[3] = False
+    p.is_prime[9] # This is now True, since there is no lesser known prime
+
+This is meant to provide a slight additional feature to having a cached dictionary

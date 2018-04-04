@@ -18,7 +18,6 @@ This module provides numerous helper utilities for Python3.X code to add functio
 - Progress bars on serial loops and parallel mappings (leveraging the excellent ``tqdm`` library)
 - Simple lazy-compute and caching of class properties, including dependency chaining
 - Executing Python2 code from within a Python3 program
-- In-place modification of functions for common "optimization" tasks
 - More intuitive contract decorator (leveraging ``pycontracts``)
 
 Installation

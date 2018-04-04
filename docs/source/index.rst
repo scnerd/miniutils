@@ -23,7 +23,6 @@ Welcome to miniutils's documentation!
    progress_bar
    caching
    python2
-   pragma
    misc
    api
 
