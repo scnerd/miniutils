@@ -130,7 +130,7 @@ class WithCachedDict:
         self.calls.append('g({})'.format(x))
         return x ** 2
 
-    @LazyDictionary()
+    @LazyDictionary(allow_collection_mutation=True)
     def ex(self, x):
         if x % 2:
             raise KeyError("Odd numbers not allowed")
