@@ -292,6 +292,9 @@ class TestCachedProperty(TestCase):
         w.f[2] = 7
         self.assertEqual(w.b, 8)
         self.assertEqual(w.a, 10)
+        del w.f[2]
+        self.assertEqual(w.b, 5)
+        self.assertEqual(w.a, 7)
         w.f.update({1: 0, 2: 0})
         self.assertEqual(w.b, 0)
         self.assertEqual(w.a, 2)
@@ -304,7 +307,6 @@ class TestCachedProperty(TestCase):
         except AttributeError:
             pass
 
-        self.assertListEqual(w.calls, ['a', 'b', 'f(1)', 'f(2)', 'b', 'f(5)', 'f(4)', 'f(5)', 'f(2)', 'a', 'b', 'f(1)',
-                                       'b', 'a', 'b', 'a', 'g(3)'])
+        self.assertListEqual(w.calls, 'a b f(1) f(2) b f(5) f(4) f(5) f(2) a b f(1) b a b f(2) a b a g(3)'.split())
 
         self.assertIn('G docstring', w.g.__doc__)

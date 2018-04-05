@@ -188,7 +188,8 @@ class _LazyIndexable:
         if not self.settable:
             raise AttributeError("{} is not settable".format(self))
         self._known[key] = value
-        self._on_modified()
+        if key in self._cache and self._cache[key] is not value:
+            self._on_modified()
 
     def __delitem__(self, key):
         if key in self._known:

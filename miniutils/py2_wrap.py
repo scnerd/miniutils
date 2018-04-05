@@ -87,7 +87,7 @@ class MakePython2:
             function_code = ''
             function_name = func
         else:
-            raise AttributeError("MakePython2 must be given either a function or an expression string to execute")
+            raise TypeError("MakePython2 must be given either a function or an expression string to execute")
 
         self.proc = sp.Popen([self.python2_path, MakePython2.template], executable=self.python2_path,
                              stdin=sp.PIPE, stdout=sp.PIPE)

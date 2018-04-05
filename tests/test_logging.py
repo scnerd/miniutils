@@ -45,9 +45,9 @@ class TestLogging(TestCase):
             self.assertIn('TEST', log_files)
 
     def test_log_dir_not_exists(self):
-        from miniutils.logs import enable_logging
+        from miniutils.logs import enable_logging, disable_logging
 
-        dir_path = '__test_logs'
+        dir_path = '.test_logs'
         assert not os.path.exists(dir_path)
 
         try:
@@ -58,7 +58,13 @@ class TestLogging(TestCase):
 
             log.critical('TEST')
 
+            for handler in log.handlers:
+                import logging
+                if isinstance(handler, logging.FileHandler):
+                    handler.close()
+                    log.removeHandler(handler)
             del log
+            disable_logging()
 
             log_files = [os.path.join(dir_path, f) for f in os.listdir(dir_path)]
             log_files = [f for f in log_files if os.path.isfile(f)]
@@ -68,5 +74,5 @@ class TestLogging(TestCase):
         except Exception:
             raise
         finally:
-            if os.path.exists(dir_path):
-                shutil.rmtree(dir_path, ignore_errors=True)
+            print("DELETING TEMP LOG DIR '{}'".format(dir_path), file=sys.__stderr__)
+            shutil.rmtree(dir_path)
