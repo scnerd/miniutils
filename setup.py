@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='miniutils',
-    version='0.0.2',
+    version='1.0.1',
     packages=['miniutils'],
     url='http://miniutils.readthedocs.io/en/latest/',
     license='MIT',
@@ -14,7 +14,6 @@ setup(
         'tqdm',
         'pycontracts',
         'coloredlogs',
-        'astor',
     ],
     download_url='https://github.com/scnerd/miniutils',
     keywords=['miniutils', 'utilities', 'decorators', 'minimal'],

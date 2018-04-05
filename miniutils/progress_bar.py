@@ -11,7 +11,7 @@ try:
         from IPython import get_ipython
         if type(get_ipython()).__module__.startswith('ipykernel.'):
             from tqdm import tqdm_notebook as _tqdm
-    except (ImportError, NameError):
+    except (ImportError, NameError):  # pragma: nocover
         # IPython isn't even installed, or we're not in it
         pass
 except ImportError:  # pragma: nocover
@@ -115,7 +115,7 @@ def _parallel_progbar_launch(mapper, iterable, nprocs=None, starmap=False, flatm
     for p in procs:
         try:
             p.join(1)
-        except (TimeoutError, mp.TimeoutError, TimedOutException):
+        except (TimeoutError, mp.TimeoutError, TimedOutException):  # pragma: nocover
             warnings.warn("parallel_progbar mapping process failed to close properly (check error output)")
 
 
