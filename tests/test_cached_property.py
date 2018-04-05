@@ -324,4 +324,9 @@ class TestCachedProperty(TestCase):
         self.assertRaisesRegex(KeyError, 'Odd', lambda: w.ex[3])
         self.assertRaisesRegex(KeyError, 'Odd', lambda: w.ex[3])
         self.assertEqual(w.ex.get(3, 1), 1)
+        w.ex[3] = 2
+        self.assertEqual(w.ex.get(3, 1), 2)
+        del w.ex[3]
+        self.assertRaisesRegex(KeyError, 'Odd', lambda: w.ex[3])
+
 
