@@ -52,3 +52,6 @@ class TestMakePython2(TestCase):
             return True
 
         self.assertRaises(ValueError, MakePython2, fail, imports=[('os', 'path', 'exists')])
+        self.assertRaises(ValueError, MakePython2, fail, global_values={1: 2})
+        self.assertRaises(ValueError, MakePython2, fail, global_values={'123invalid_name': 5})
+        self.assertRaises(ValueError, MakePython2, fail, global_values={'invalid name': 5})
