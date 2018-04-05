@@ -113,14 +113,7 @@ Even using the above tools, it is non-concise to allow indexing into a property 
 The ``LazyDictionary`` decorator allows you to write a ``__getitem__`` style property that can be used like a dictionary and has its results cached::
 
     class Primes:
-        @LazyDictionary('is_prime')
-        def primes_under(self, i):
-            if i == 0:
-                return []
-            else:
-                return self.primes_under[i-1] + ([i] if self.is_prime[i] else [])
-
-        @LazyDictionary('primes_under')
+        @LazyDictionary()
         def is_prime(self, i):
             if not isinstance(i, int) or i < 1:
                 raise ValueError("Can only check if a positive integer is prime")
@@ -129,7 +122,7 @@ The ``LazyDictionary`` decorator allows you to write a ``__getitem__`` style pro
             elif i % 2 == 0:
                 return False
             else:
-                return all(i % p != 0 for p in self.primes_under[min(i-1, math.sqrt(i))])
+                return all(i % p != 0 for p in range(3, int(math.sqrt(i)) + 1, 2) if self.is_prime[p])
 
     p = Primes()
     p.is_prime[5] # True, caches the fact that 1, 2, and 3 are prime
@@ -140,6 +133,7 @@ The indexing notation is used and preferred to make clear that this decorator on
 
 This plugs cleanly into ``CachedProperty``, accepting a list of properties whose values are invalidated when this dictionary is modified. It also supports allowing or disallowing explicit assignment to certain indices::
 
+    p = Primes()
     p.is_prime[3] = False
     p.is_prime[9] # This is now True, since there is no lesser known prime
 

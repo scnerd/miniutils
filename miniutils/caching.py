@@ -172,6 +172,7 @@ class _LazyIndexable:
     def __init__(self, getter_closure, on_modified, settable=False, values=None):
         self._known = dict(values or {})
         self._cache = {}
+        self._key_errors = {}
         self._closure = getter_closure
         self._on_modified = on_modified
         self.settable = settable
@@ -180,8 +181,16 @@ class _LazyIndexable:
         if item in self._known:
             return self._known[item]
 
+        if item in self._key_errors:
+            raise KeyError(*self._key_errors[item])
+
         if item not in self._cache:
-            self._cache[item] = self._closure(item)
+            try:
+                self._cache[item] = self._closure(item)
+            except KeyError as e:
+                self._key_errors[item] = e.args
+                raise e
+
         return self._cache[item]
 
     def __setitem__(self, key, value):
@@ -196,11 +205,19 @@ class _LazyIndexable:
             del self._known[key]
         if key in self._cache:  # Not elif, we want to purge all knowledge about this key
             del self._cache[key]
+        if key in self._key_errors:
+            del self._key_errors[key]
         self._on_modified()
 
     @property
     def __doc__(self):
         return self._closure.__doc__
+
+    def get(self, key, default):
+        try:
+            return self[key]
+        except KeyError:
+            return default
 
     def update(self, new_values):
         if not self.settable:
