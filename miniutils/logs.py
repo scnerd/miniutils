@@ -12,8 +12,8 @@ def enable_logging(log_level='NOTSET', *, logdir=None, use_colors=True, capture_
     import sys
     import logging.handlers
 
-    if logdir is not None and not os.path.exists(logdir):
-        os.makedirs(logdir)
+    if logdir is not None:
+        os.makedirs(logdir, exist_ok=True)
     logs_base.logger = logging.getLogger()
 
     for handler in logs_base.logger.handlers:
@@ -64,7 +64,7 @@ def enable_logging(log_level='NOTSET', *, logdir=None, use_colors=True, capture_
                     return super().format(record)
 
             color_formatter = SmarterColorer(fmt=format_str)
-        except ImportError:
+        except ImportError:  # pragma: nocover
             color_formatter = plain_formatter
     else:
         color_formatter = plain_formatter

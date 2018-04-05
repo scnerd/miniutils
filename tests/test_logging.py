@@ -1,4 +1,7 @@
 import sys
+import os
+import shutil
+import tempfile
 from unittest import TestCase
 
 from miniutils.capture_output import captured_output
@@ -29,9 +32,6 @@ class TestLogging(TestCase):
         #self.assertEqual(third.lower(), '__3__')
 
     def test_log_dir(self):
-        import tempfile
-        import os
-
         with tempfile.TemporaryDirectory() as d:
             from miniutils.logs import enable_logging
             log = enable_logging(logdir=d)
@@ -44,3 +44,29 @@ class TestLogging(TestCase):
             print(">>> {} <<<".format(log_files), file=sys.__stderr__)
             self.assertIn('TEST', log_files)
 
+    def test_log_dir_not_exists(self):
+        from miniutils.logs import enable_logging
+
+        dir_path = '__test_logs'
+        assert not os.path.exists(dir_path)
+
+        try:
+            log = enable_logging(logdir=dir_path)
+
+            assert os.path.exists(dir_path)
+            assert os.path.isdir(dir_path)
+
+            log.critical('TEST')
+
+            del log
+
+            log_files = [os.path.join(dir_path, f) for f in os.listdir(dir_path)]
+            log_files = [f for f in log_files if os.path.isfile(f)]
+            log_files = "\n".join(open(f).read() for f in log_files)
+            print(">>> {} <<<".format(log_files), file=sys.__stderr__)
+            self.assertIn('TEST', log_files)
+        except Exception:
+            raise
+        finally:
+            if os.path.exists(dir_path):
+                shutil.rmtree(dir_path, ignore_errors=True)
