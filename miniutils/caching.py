@@ -168,7 +168,7 @@ class CachedProperty:
             return property(fget=inner_getter, fset=inner_setter, fdel=inner_deleter, doc=self.f.__doc__)
 
 
-class _LazyIndexable:
+class _LazyDictionary:
     def __init__(self, getter_closure, on_modified, settable=False, values=None):
         self._known = dict(values or {})
         self._cache = {}
@@ -251,9 +251,9 @@ class LazyDictionary:
         @functools.wraps(f)
         def inner_getter(inner_self):
             if not hasattr(inner_self, cache_name):
-                new_indexable = _LazyIndexable(functools.wraps(f)(partial(f, inner_self)),
-                                               partial(reset_dependents, inner_self),
-                                               self.allow_mutation)
+                new_indexable = _LazyDictionary(functools.wraps(f)(partial(f, inner_self)),
+                                                partial(reset_dependents, inner_self),
+                                                self.allow_mutation)
                 setattr(inner_self, cache_name, new_indexable)
             return getattr(inner_self, cache_name)
 

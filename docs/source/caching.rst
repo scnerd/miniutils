@@ -103,8 +103,6 @@ This isn't the complete feature set of the decorator, but it's a good initial ta
 .. autoclass:: miniutils.caching.CachedProperty
     :members:
 
-    .. automethod:: __init__
-
 Indexed Property
 ++++++++++++++++
 
@@ -137,4 +135,12 @@ This plugs cleanly into ``CachedProperty``, accepting a list of properties whose
     p.is_prime[3] = False
     p.is_prime[9] # This is now True, since there is no lesser known prime
 
-This is meant to provide a slight additional feature to having a cached dictionary
+This is meant to provide a slight additional feature to having a cached dictionary, though honestly it's probably a very small improvement over ``self.is_prime = defaultdict(self._is_prime)``, since it has the additions of invalidating cached properties and making values dependant on their indices.
+
+Values can be explicitly assigned to indices (if ``allow_collection_mutation=True``); assigned values override cached values. Raised ``KeyError``s are cached to prevent re-running indices where failure is known. If an error is not due solely to the index, raise some other error to allow that index to be retried later if some variation to the program's state might allow it to succeed. ``.get(key, default)`` and ``.update(dict)`` are also provided to offer a more dictionary-like interface. A particular object instance will have a :class:`miniutils.caching._LazyDictionary` instance which provides its caching, though the decorated function is once again replaced with a simple ``@property``.
+
+.. autoclass:: miniutils.caching.LazyDictionary
+    :members:
+
+.. autoclass:: miniutils.caching._LazyDictionary
+    :members:
