@@ -168,10 +168,11 @@ class CachedProperty:
             return property(fget=inner_getter, fset=inner_setter, fdel=inner_deleter, doc=self.f.__doc__)
 
 
-class _LazyIndexable:
+class _LazyDictionary:
     def __init__(self, getter_closure, on_modified, settable=False, values=None):
         self._known = dict(values or {})
         self._cache = {}
+        self._key_errors = {}
         self._closure = getter_closure
         self._on_modified = on_modified
         self.settable = settable
@@ -180,8 +181,16 @@ class _LazyIndexable:
         if item in self._known:
             return self._known[item]
 
+        if item in self._key_errors:
+            raise KeyError(*self._key_errors[item])
+
         if item not in self._cache:
-            self._cache[item] = self._closure(item)
+            try:
+                self._cache[item] = self._closure(item)
+            except KeyError as e:
+                self._key_errors[item] = e.args
+                raise e
+
         return self._cache[item]
 
     def __setitem__(self, key, value):
@@ -196,11 +205,19 @@ class _LazyIndexable:
             del self._known[key]
         if key in self._cache:  # Not elif, we want to purge all knowledge about this key
             del self._cache[key]
+        if key in self._key_errors:
+            del self._key_errors[key]
         self._on_modified()
 
     @property
     def __doc__(self):
         return self._closure.__doc__
+
+    def get(self, key, default):
+        try:
+            return self[key]
+        except KeyError:
+            return default
 
     def update(self, new_values):
         if not self.settable:
@@ -234,9 +251,9 @@ class LazyDictionary:
         @functools.wraps(f)
         def inner_getter(inner_self):
             if not hasattr(inner_self, cache_name):
-                new_indexable = _LazyIndexable(functools.wraps(f)(partial(f, inner_self)),
-                                               partial(reset_dependents, inner_self),
-                                               self.allow_mutation)
+                new_indexable = _LazyDictionary(functools.wraps(f)(partial(f, inner_self)),
+                                                partial(reset_dependents, inner_self),
+                                                self.allow_mutation)
                 setattr(inner_self, cache_name, new_indexable)
             return getattr(inner_self, cache_name)
 
