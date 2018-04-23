@@ -130,6 +130,13 @@ class WithCachedDict:
         self.calls.append('g({})'.format(x))
         return x ** 2
 
+    @LazyDictionary(allow_collection_mutation=True)
+    def ex(self, x):
+        if x % 2:
+            raise KeyError("Odd numbers not allowed")
+        else:
+            return x // 2
+
 
 class TestCachedProperty(TestCase):
     def test_matrix(self):
@@ -292,6 +299,9 @@ class TestCachedProperty(TestCase):
         w.f[2] = 7
         self.assertEqual(w.b, 8)
         self.assertEqual(w.a, 10)
+        del w.f[2]
+        self.assertEqual(w.b, 5)
+        self.assertEqual(w.a, 7)
         w.f.update({1: 0, 2: 0})
         self.assertEqual(w.b, 0)
         self.assertEqual(w.a, 2)
@@ -304,7 +314,19 @@ class TestCachedProperty(TestCase):
         except AttributeError:
             pass
 
-        self.assertListEqual(w.calls, ['a', 'b', 'f(1)', 'f(2)', 'b', 'f(5)', 'f(4)', 'f(5)', 'f(2)', 'a', 'b', 'f(1)',
-                                       'b', 'a', 'b', 'a', 'g(3)'])
+        self.assertListEqual(w.calls, 'a b f(1) f(2) b f(5) f(4) f(5) f(2) a b f(1) b a b f(2) a b a g(3)'.split())
 
         self.assertIn('G docstring', w.g.__doc__)
+
+    def test_cached_dict_errors(self):
+        w = WithCachedDict()
+        self.assertEqual(w.ex[2], 1)
+        self.assertRaisesRegex(KeyError, 'Odd', lambda: w.ex[3])
+        self.assertRaisesRegex(KeyError, 'Odd', lambda: w.ex[3])
+        self.assertEqual(w.ex.get(3, 1), 1)
+        w.ex[3] = 2
+        self.assertEqual(w.ex.get(3, 1), 2)
+        del w.ex[3]
+        self.assertRaisesRegex(KeyError, 'Odd', lambda: w.ex[3])
+
+

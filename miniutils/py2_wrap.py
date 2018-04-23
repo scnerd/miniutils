@@ -7,6 +7,10 @@ import subprocess as sp
 import textwrap
 
 
+_re_var_name = re.compile(r'^[a-zA-Z_]\w*$', re.UNICODE)
+_re_module_name = re.compile(r'^[a-zA-Z_.][\w.]*$', re.UNICODE)
+
+
 # TODO: Use fd's besides stdin and stdout, so that you don't mess with code that reads or writes to those streams
 class MakePython2:
     pickle_protocol = 2
@@ -31,7 +35,6 @@ class MakePython2:
         self.python2_path = python2_path
         self.proc = None
 
-        valid_name = re.compile(r'^[\w.]+$', re.UNICODE)
         if isinstance(self.imports, dict):
             self.imports = list(self.imports.items())
         for i, imp in enumerate(self.imports):
@@ -40,12 +43,15 @@ class MakePython2:
             elif isinstance(imp, (tuple, list)):
                 if len(imp) not in [1, 2]:
                     raise ValueError("Imports must be given as 'name', ('name',), or ('pkg', 'name')")
-            if not all(isinstance(n, str) and valid_name.match(n) for n in imp):
+            if not all(isinstance(n, str) and _re_module_name.match(n) for n in imp):
                 raise ValueError("Invalid import name: 'import {}{}'"
                                  .format(imp[0], 'as {}'.format(imp[1]) if len(imp) == 2 else ''))
 
-        if not all(isinstance(k, str) for k in self.globals.keys()):
-            raise ValueError("Global variables must be given as {'name': value}")
+        for k in self.globals.keys():
+            if not isinstance(k, str):
+                raise ValueError("Global variables must be given as {'name': value}")
+            elif not _re_var_name.match(k):
+                raise ValueError("Invalid variable name given: '{}'".format(k))
 
         if func:
             self(func)
@@ -81,7 +87,7 @@ class MakePython2:
             function_code = ''
             function_name = func
         else:
-            raise AttributeError("MakePython2 must be given either a function or an expression string to execute")
+            raise TypeError("MakePython2 must be given either a function or an expression string to execute")
 
         self.proc = sp.Popen([self.python2_path, MakePython2.template], executable=self.python2_path,
                              stdin=sp.PIPE, stdout=sp.PIPE)
