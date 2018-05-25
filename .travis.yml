@@ -7,7 +7,9 @@ install:
  - pip install .
  - pip install -r requirements.txt
 
-script: nosetests --with-coverage --nologcapture tests
+script:
+ - nosetests --with-coverage --nologcapture tests
+ - nosetests --nologcapture stress_tests
 
 after_success:
  - coverage combine
