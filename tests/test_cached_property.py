@@ -401,7 +401,7 @@ class TestCachedFileCall(TestCase):
                 self.assertEqual(self.verify_from_cache(f, f1.name, f2.name), (True, 7))
 
     def test_with_args(self):
-        @file_cached_decorator(check_args=True, auto_purge=True)
+        @file_cached_decorator(auto_purge=True)
         def f(x, y):
             sleep(0.1)
             return x + y
