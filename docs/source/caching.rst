@@ -176,6 +176,8 @@ By default, :class:`miniutils.caching.FileCached` and its decorator form generat
 
 .. warning:: Note that ``shelve``, and therefore :class:`miniutils.caching.FileCached`, is not thread-safe or multiprocess-safe, so this cache will likely fail if being used in any parallel fashion. To use a data store in a parallel fashion, you should probably rely on a robust database system of some sort, such as MongoDB.
 
+.. warning:: When purging a file cache, :class:`miniutils.caching.FileCached` deletes all files matching its database's ``filepath + ".*"``. Make sure that the file path given for the cache has no relation to any other code or data files used by your program.
+
 .. autoclass:: miniutils.caching.FileCached
     :members:
 
