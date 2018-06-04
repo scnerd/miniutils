@@ -333,7 +333,7 @@ class TestCachedProperty(TestCase):
 
 class TestCachedFileCall(TestCase):
     @staticmethod
-    def verify_from_cache(cacher, *args, timeout=0.01, **kwargs):
+    def verify_from_cache(cacher, *args, timeout=0.1, **kwargs):
         from time import time
         start = time()
         result = cacher(*args, **kwargs)
@@ -342,7 +342,7 @@ class TestCachedFileCall(TestCase):
 
     def test_basic(self):
         def f(x):
-            sleep(0.1)
+            sleep(0.2)
             return x + 1
 
         f = FileCached(f)
@@ -350,20 +350,25 @@ class TestCachedFileCall(TestCase):
             self.assertEqual(self.verify_from_cache(f, 1), (False, 2))
             self.assertEqual(self.verify_from_cache(f, 1), (True, 2))
         finally:  # Do this manually at least once just to make sure that tests don't all auto-purge
-            f.purge()
+            f.purge(create_new_shelf=False)
 
     def test_basic_decorator(self):
         @file_cached_decorator(auto_purge=True)
         def f(x):
-            sleep(0.1)
+            sleep(0.2)
             return x + 1
+
+        self.assertEqual(self.verify_from_cache(f, 1), (False, 2))
+        self.assertEqual(self.verify_from_cache(f, 1), (True, 2))
+
+        f.purge()
 
         self.assertEqual(self.verify_from_cache(f, 1), (False, 2))
         self.assertEqual(self.verify_from_cache(f, 1), (True, 2))
 
     def test_repeat(self):
         def f(x):
-            sleep(0.1)
+            sleep(0.2)
             return x + 1
 
         self.assertEqual(self.verify_from_cache(FileCached(f), 1), (False, 2))
@@ -373,7 +378,7 @@ class TestCachedFileCall(TestCase):
         from tempfile import NamedTemporaryFile
 
         def f(path1, path2):
-            sleep(0.1)
+            sleep(0.2)
             return int(open(path1).read().strip()) + int(open(path2).read().strip())
 
         with NamedTemporaryFile() as f1:
@@ -403,7 +408,7 @@ class TestCachedFileCall(TestCase):
     def test_with_args(self):
         @file_cached_decorator(auto_purge=True)
         def f(x, y):
-            sleep(0.1)
+            sleep(0.2)
             return x + y
 
         self.assertEqual(self.verify_from_cache(f, 1, 2), (False, 3))
