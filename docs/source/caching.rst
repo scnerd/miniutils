@@ -144,3 +144,39 @@ Values can be explicitly assigned to indices (if ``allow_collection_mutation=Tru
 
 .. autoclass:: miniutils.caching._LazyDictionary
     :members:
+
+File-backed Function Cache
+++++++++++++++++++++++++++
+
+As a file-based alternative to simple function caching (such as that provided by ``functools.lru_cache``), :class:`miniutils.caching.FileCached` provides caching of a function's results using ``shelve`` as its storage backend. This is primarily intended for long-run file processing scripts, and as such it natively supports invalidating cache items if relied-upon files are modified since when the cache entry was created.
+
+There are several ways to use this cache. The simplest is to use it as a decorator, leveraging :func:`miniutils.caching.file_cached_decorator`. The following example stores the results of ``load_data`` in a cache at ``./preprocessed``, which gets automatically invalidated when ``/path/to/data.csv`` gets modified::
+
+    @file_cached_decorator('./preprocessed', files_used=['/path/to/data.csv'])
+    def load_data():
+        df = pandas.read_csv('/path/to/data.csv')
+        # Modify, clean, process data
+        return df
+
+This could also be accomplished on a function not defined in the user code, using :class:`miniutils.caching.FileCached` directly::
+
+    data = FileCached(load_data, './preprocessed', files_used=['/path/to/data.csv'])
+
+By offloading the generation of the cache to the caller code, it's also possible to dynamically provide the list of files being used when they are arguments to the function::
+
+    def load_data(path):
+        df = pandas.read_csv(path)
+        # ...
+
+    data = FileCached(load_data, './preprocessed', files_used=[data_path])(data_path)
+
+This use of :class:`miniutils.caching.FileCached` is how it is meant to be used when attempting to store function results across multiple runs of a script. Each time the script is run, it will connect to the same persistent on-disk cache, update if function arguments or relied-upon files change, and synchronize any new function results back to disk before the program exits.
+
+By default, :class:`miniutils.caching.FileCached` and its decorator form generate a cache filepath based on the function's name if no explicit name is set. It is recommended not to use this default name if you wish to use the cache between runs of Python, since any change to the function's name will invalidate the cache; also, this breaks if you wish to cache multiple functions with the same name.
+
+.. warning:: Note that ``shelve``, and therefore :class:`miniutils.caching.FileCached`, is not thread-safe or multiprocess-safe, so this cache will likely fail if being used in any parallel fashion. To use a data store in a parallel fashion, you should probably rely on a robust database system of some sort, such as MongoDB.
+
+.. autoclass:: miniutils.caching.FileCached
+    :members:
+
+.. autofunction:: miniutils.caching.file_cached_decorator

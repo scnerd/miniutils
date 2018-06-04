@@ -1,9 +1,10 @@
 from collections import defaultdict
 from unittest import TestCase
+from time import sleep
 
 import numpy as np
 
-from miniutils.caching import CachedProperty, LazyDictionary
+from miniutils import CachedProperty, LazyDictionary, FileCached, file_cached_decorator
 from miniutils.capture_output import captured_output
 
 
@@ -330,3 +331,87 @@ class TestCachedProperty(TestCase):
         self.assertRaisesRegex(KeyError, 'Odd', lambda: w.ex[3])
 
 
+class TestCachedFileCall(TestCase):
+    @staticmethod
+    def verify_from_cache(cacher, *args, timeout=0.01, **kwargs):
+        from time import time
+        start = time()
+        result = cacher(*args, **kwargs)
+        end = time()
+        return (end - start) < timeout, result
+
+    def test_basic(self):
+        def f(x):
+            sleep(0.1)
+            return x + 1
+
+        f = FileCached(f)
+        try:
+            self.assertEqual(self.verify_from_cache(f, 1), (False, 2))
+            self.assertEqual(self.verify_from_cache(f, 1), (True, 2))
+        finally:  # Do this manually at least once just to make sure that tests don't all auto-purge
+            f.purge()
+
+    def test_basic_decorator(self):
+        @file_cached_decorator(auto_purge=True)
+        def f(x):
+            sleep(0.1)
+            return x + 1
+
+        self.assertEqual(self.verify_from_cache(f, 1), (False, 2))
+        self.assertEqual(self.verify_from_cache(f, 1), (True, 2))
+
+    def test_repeat(self):
+        def f(x):
+            sleep(0.1)
+            return x + 1
+
+        self.assertEqual(self.verify_from_cache(FileCached(f), 1), (False, 2))
+        self.assertEqual(self.verify_from_cache(FileCached(f, auto_purge=True), 1), (True, 2))
+
+    def test_with_dependencies(self):
+        from tempfile import NamedTemporaryFile
+
+        def f(path1, path2):
+            sleep(0.1)
+            return int(open(path1).read().strip()) + int(open(path2).read().strip())
+
+        with NamedTemporaryFile() as f1:
+            with NamedTemporaryFile() as f2:
+                f = FileCached(f, files_used=[f1.name, f2.name], auto_purge=True)
+
+                f1.write(b'1')
+                f2.write(b'2')
+
+                f1.flush()
+                f2.flush()
+
+                sleep(0.1)
+
+                self.assertEqual(self.verify_from_cache(f, f1.name, f2.name), (False, 3))
+                self.assertEqual(self.verify_from_cache(f, f1.name, f2.name), (True, 3))
+
+                f1.seek(0)
+                f1.write(b'5')
+                f1.flush()
+
+                sleep(0.1)
+
+                self.assertEqual(self.verify_from_cache(f, f1.name, f2.name), (False, 7))
+                self.assertEqual(self.verify_from_cache(f, f1.name, f2.name), (True, 7))
+
+    def test_with_args(self):
+        @file_cached_decorator(check_args=True, auto_purge=True)
+        def f(x, y):
+            sleep(0.1)
+            return x + y
+
+        self.assertEqual(self.verify_from_cache(f, 1, 2), (False, 3))
+        self.assertEqual(self.verify_from_cache(f, 1, 2), (True, 3))
+
+        self.assertEqual(self.verify_from_cache(f, 3, 4), (False, 7))
+        self.assertEqual(self.verify_from_cache(f, 5, 6), (False, 11))
+
+        self.assertEqual(self.verify_from_cache(f, 1, 2), (True, 3))
+        self.assertEqual(self.verify_from_cache(f, 3, 4), (True, 7))
+        self.assertEqual(self.verify_from_cache(f, 5, 6), (True, 11))
