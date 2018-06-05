@@ -1,6 +1,6 @@
 [run]
 source=miniutils
-concurrency = multiprocessing
+concurrency=multiprocessing
 omit =
     miniutils/py2_template.py
     *__init__*

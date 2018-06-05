@@ -1,9 +1,10 @@
 from collections import defaultdict
 from unittest import TestCase
+from time import sleep
 
 import numpy as np
 
-from miniutils.caching import CachedProperty, LazyDictionary
+from miniutils import CachedProperty, LazyDictionary, FileCached, file_cached_decorator
 from miniutils.capture_output import captured_output
 
 
@@ -330,3 +331,94 @@ class TestCachedProperty(TestCase):
         self.assertRaisesRegex(KeyError, 'Odd', lambda: w.ex[3])
 
 
+class TestCachedFileCall(TestCase):
+    def verify_from_cache(self, cacher, *args, **kwargs):
+        num_hits, num_misses = cacher.cache_info()
+        result = cacher(*args, **kwargs)
+        new_hits, new_misses = cacher.cache_info()
+        self.assertEqual(num_hits + num_misses + 1, new_hits + new_misses)
+
+        if new_hits == num_hits + 1:
+            return True, result
+        elif new_misses == num_misses + 1:
+            return False, result
+        else:
+            self.fail("Something went wrong with the cache statistics: went from ({}, {}) to ({}, {})".format(
+                num_hits, num_misses, new_hits, new_misses
+            ))
+
+    def test_basic(self):
+        def f(x):
+            return x + 1
+
+        f = FileCached(f)
+        try:
+            self.assertEqual(self.verify_from_cache(f, 1), (False, 2))
+            self.assertEqual(self.verify_from_cache(f, 1), (True, 2))
+        finally:  # Do this manually at least once just to make sure that tests don't all auto-purge
+            f.cache_clear(create_new_shelf=False)
+
+    def test_basic_decorator(self):
+        @file_cached_decorator('test_basic_decorator', auto_purge=True)
+        def f(x):
+            return x + 1
+
+        self.assertEqual(self.verify_from_cache(f, 1), (False, 2))
+        self.assertEqual(self.verify_from_cache(f, 1), (True, 2))
+
+        f.cache_clear()
+
+        self.assertEqual(self.verify_from_cache(f, 1), (False, 2))
+        self.assertEqual(self.verify_from_cache(f, 1), (True, 2))
+
+    def test_repeat(self):
+        def f(x):
+            return x + 1
+
+        self.assertEqual(self.verify_from_cache(FileCached(f, 'test_repeat'), 1), (False, 2))
+        self.assertEqual(self.verify_from_cache(FileCached(f, 'test_repeat', auto_purge=True), 1), (True, 2))
+
+    def test_with_dependencies(self):
+        from tempfile import NamedTemporaryFile
+
+        def f(path1, path2):
+            return int(open(path1).read().strip()) + int(open(path2).read().strip())
+
+        with NamedTemporaryFile() as f1:
+            with NamedTemporaryFile() as f2:
+                f = FileCached(f, 'test_with_dependencies', files_used=[f1.name, f2.name], auto_purge=True)
+
+                f1.write(b'1')
+                f2.write(b'2')
+
+                f1.flush()
+                f2.flush()
+
+                sleep(0.1)
+
+                self.assertEqual(self.verify_from_cache(f, f1.name, f2.name), (False, 3))
+                self.assertEqual(self.verify_from_cache(f, f1.name, f2.name), (True, 3))
+
+                f1.seek(0)
+                f1.write(b'5')
+                f1.flush()
+
+                sleep(0.1)
+
+                self.assertEqual(self.verify_from_cache(f, f1.name, f2.name), (False, 7))
+                self.assertEqual(self.verify_from_cache(f, f1.name, f2.name), (True, 7))
+
+    def test_with_args(self):
+        @file_cached_decorator('test_with_args', auto_purge=True)
+        def f(x, y):
+            return x + y
+
+        self.assertEqual(self.verify_from_cache(f, 1, 2), (False, 3))
+        self.assertEqual(self.verify_from_cache(f, 1, 2), (True, 3))
+
+        self.assertEqual(self.verify_from_cache(f, 3, 4), (False, 7))
+        self.assertEqual(self.verify_from_cache(f, 5, 6), (False, 11))
+
+        self.assertEqual(self.verify_from_cache(f, 1, 2), (True, 3))
+        self.assertEqual(self.verify_from_cache(f, 3, 4), (True, 7))
+        self.assertEqual(self.verify_from_cache(f, 5, 6), (True, 11))

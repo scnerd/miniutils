@@ -1,4 +1,4 @@
-from .caching import CachedProperty, LazyDictionary
+from .caching import CachedProperty, LazyDictionary, FileCached, file_cached_decorator
 from .magic_contract import magic_contract
 from .opt_decorator import optional_argument_decorator
 from .progress_bar import progbar, parallel_progbar, iparallel_progbar
