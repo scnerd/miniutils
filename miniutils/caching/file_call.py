@@ -5,6 +5,7 @@ from functools import wraps
 from glob import glob
 
 from miniutils.opt_decorator import optional_argument_decorator
+from miniutils.logs_base import debug
 
 
 class FileCached:
@@ -54,9 +55,18 @@ class FileCached:
 
     def cache_clear(self, create_new_shelf=True):
         """Deletes the underlying cache"""
+        # TODO: Remove these debug loops
+        debug("Clearing shelf: directory starts with the following files:")
+        for path in glob(os.path.dirname(self.path)):
+            debug(path)
+
         del self._shelf
-        for path in glob(self.path + '.*'):
+        for path in glob(self.path + '*'):
             os.remove(path)
+
+        debug("Clearing shelf: directory ends with the following files:")
+        for path in glob(os.path.dirname(self.path)):
+            debug(path)
 
         if create_new_shelf:
             self._shelf = shelve.open(self.path)
