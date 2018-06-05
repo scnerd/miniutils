@@ -1,8 +1,8 @@
+import os
+import shelve
+from collections import namedtuple
 from functools import wraps
 from glob import glob
-from collections import namedtuple
-import shelve
-import os
 
 from miniutils.opt_decorator import optional_argument_decorator
 
@@ -82,6 +82,7 @@ def file_cached_decorator(*args, **kwargs):
     :return: A decorator for a function
     :rtype: function
     """
+
     @wraps(FileCached.__init__)
     def decorator(fn):
         """

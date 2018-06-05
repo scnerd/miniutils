@@ -359,7 +359,7 @@ class TestCachedFileCall(TestCase):
             f.cache_clear(create_new_shelf=False)
 
     def test_basic_decorator(self):
-        @file_cached_decorator(auto_purge=True)
+        @file_cached_decorator('test_basic_decorator', auto_purge=True)
         def f(x):
             return x + 1
 
@@ -375,8 +375,8 @@ class TestCachedFileCall(TestCase):
         def f(x):
             return x + 1
 
-        self.assertEqual(self.verify_from_cache(FileCached(f), 1), (False, 2))
-        self.assertEqual(self.verify_from_cache(FileCached(f, auto_purge=True), 1), (True, 2))
+        self.assertEqual(self.verify_from_cache(FileCached(f, 'test_repeat'), 1), (False, 2))
+        self.assertEqual(self.verify_from_cache(FileCached(f, 'test_repeat', auto_purge=True), 1), (True, 2))
 
     def test_with_dependencies(self):
         from tempfile import NamedTemporaryFile
@@ -386,7 +386,7 @@ class TestCachedFileCall(TestCase):
 
         with NamedTemporaryFile() as f1:
             with NamedTemporaryFile() as f2:
-                f = FileCached(f, files_used=[f1.name, f2.name], auto_purge=True)
+                f = FileCached(f, 'test_with_dependencies', files_used=[f1.name, f2.name], auto_purge=True)
 
                 f1.write(b'1')
                 f2.write(b'2')
@@ -409,7 +409,7 @@ class TestCachedFileCall(TestCase):
                 self.assertEqual(self.verify_from_cache(f, f1.name, f2.name), (True, 7))
 
     def test_with_args(self):
-        @file_cached_decorator(auto_purge=True)
+        @file_cached_decorator('test_with_args', auto_purge=True)
         def f(x, y):
             return x + y
 
