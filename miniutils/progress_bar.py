@@ -1,6 +1,9 @@
 import itertools
 import multiprocessing as mp
-from nose.plugins.multiprocess import TimedOutException
+try:
+    from nose.plugins.multiprocess import TimedOutException
+except ImportError:
+    TimedOutException = TimeoutError
 import random
 import warnings
 
