@@ -1,6 +1,9 @@
 import itertools
 import multiprocessing as mp
-from nose.plugins.multiprocess import TimedOutException
+try:
+    from nose.plugins.multiprocess import TimedOutException
+except ImportError:
+    TimedOutException = TimeoutError
 import random
 import warnings
 
@@ -54,7 +57,7 @@ def _fun(f, q_in, q_out, flatten, star):  # pragma: no cover
 
 
 def _parallel_progbar_launch(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
-                             verbose=True, verbose_flatmap=None, max_cache=-1, **kwargs):
+                             verbose=True, verbose_flatmap=None, max_cache=-1, timeout=1, **kwargs):
 
     # Shuffle the iterable if requested, to make the parallel execution potentially more uniform in runtime
     enumerated_iterable = enumerate(iterable)
@@ -114,13 +117,12 @@ def _parallel_progbar_launch(mapper, iterable, nprocs=None, starmap=False, flatm
     # Clean up
     for p in procs:
         try:
-            p.join(1)
+            p.join(timeout)
         except (TimeoutError, mp.TimeoutError, TimedOutException):  # pragma: nocover
             warnings.warn("parallel_progbar mapping process failed to close properly (check error output)")
 
 
-def parallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
-                     verbose=True, verbose_flatmap=None, **kwargs):
+def parallel_progbar(*args, **kwargs):
     """Performs a parallel mapping of the given iterable, reporting a progress bar as values get returned
 
     :param mapper: The mapping function to apply to elements of the iterable
@@ -133,16 +135,16 @@ def parallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=False
         runtimes if processing different objects takes different amounts of time.
     :param verbose: Whether or not to print the progress bar
     :param verbose_flatmap: If performing a flatmap, whether or not to report each object as it's returned
+    :param timeout: The number of seconds to wait for each worker process after completing
     :param kwargs: Any other keyword arguments to pass to the progress bar (see ``progbar``)
     :return: A list of the returned objects, in the same order as provided
     """
 
-    results = _parallel_progbar_launch(mapper, iterable, nprocs, starmap, flatmap, shuffle, verbose, verbose_flatmap, **kwargs)
+    results = _parallel_progbar_launch(*args, **kwargs)
     return [x for i, x in sorted(results, key=lambda p: p[0])]
 
 
-def iparallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=False, shuffle=False,
-                      verbose=True, verbose_flatmap=None, max_cache=-1, **kwargs):
+def iparallel_progbar(*args, **kwargs):
     """Performs a parallel mapping of the given iterable, reporting a progress bar as values get returned. Yields
     objects as soon as they're computed, but does not guarantee that they'll be in the correct order.
 
@@ -157,12 +159,12 @@ def iparallel_progbar(mapper, iterable, nprocs=None, starmap=False, flatmap=Fals
     :param verbose: Whether or not to print the progress bar
     :param verbose_flatmap: If performing a flatmap, whether or not to report each object as it's returned
     :param max_cache: Maximum number of mapped objects to permit in the queue at once
+    :param timeout: The number of seconds to wait for each worker process after completing
     :param kwargs: Any other keyword arguments to pass to the progress bar (see ``progbar``)
     :return: A list of the returned objects, in whatever order they're done being computed
     """
 
-    results = _parallel_progbar_launch(mapper, iterable, nprocs, starmap, flatmap, shuffle, verbose,
-                                       verbose_flatmap, max_cache, **kwargs)
+    results = _parallel_progbar_launch(*args, **kwargs)
     return (x for i, x in results)
 
 
