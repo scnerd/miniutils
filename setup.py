@@ -1,9 +1,9 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='miniutils',
     version='1.0.2',
-    packages=['miniutils'],
+    packages=find_packages(),
     url='http://miniutils.readthedocs.io/en/latest/',
     license='MIT',
     author='scnerd',
